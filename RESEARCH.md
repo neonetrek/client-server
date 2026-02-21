@@ -625,13 +625,29 @@ A March 2025 research paper demonstrated **delta state CRDTs with dynamic strate
 ### P2P Libraries
 - [Trystero - Serverless WebRTC matchmaking](https://github.com/dmotz/trystero)
 - [PeerJS](https://peerjs.com/)
+- [P2PT - WebTorrent tracker signaling](https://github.com/subins2000/p2pt)
+- [NetplayJS - Rollback netcode for browser games](https://github.com/rameshvarun/netplayjs)
+- [Telegraph - GGPO-style rollback for browser](https://github.com/thomasboyt/telegraph)
+- [Geckos.io - Server-authoritative WebRTC](https://geckos.io)
+- [fast-rtc-swarm - Full-mesh WebRTC swarm](https://github.com/mattkrick/fast-rtc-swarm)
 - [Trystero with Three.js tutorial](https://medium.com/@pablobandinopla/effortless-serverless-multiplayer-in-three-js-with-trystero-f025f31150c6)
+
+### Serverless Signaling & NAT Traversal
+- [QWBP: Breaking the QR Limit for Serverless WebRTC](https://magarcia.io/air-gapped-webrtc-breaking-the-qr-limit/)
+- [serverless-webrtc-qrcode](https://github.com/dcerisano/serverless-webrtc-qrcode)
+- [Coturn - Open-source TURN server](https://github.com/coturn/coturn)
+- [WebRTC NAT Traversal Guide](https://webrtc.link/en/articles/stun-turn-servers-webrtc-nat-traversal/)
 
 ### Game Networking Architecture
 - [P2P vs Client-Server for multiplayer games - Hathora](https://blog.hathora.dev/peer-to-peer-vs-client-server-architecture/)
 - [Client-Server Game Architecture - Gabriel Gambetta](https://www.gabrielgambetta.com/client-server-game-architecture.html)
 - [Beginner's Guide to Game Networking](https://pvigier.github.io/2019/09/08/beginner-guide-game-networking.html)
 - [Open-Source Framework Using WebRTC for Online Multiplayer Gaming (ACM 2023)](https://dl.acm.org/doi/10.1145/3631085.3631238)
+- [SnapNet: Netcode Architectures Part 1 - Lockstep](https://www.snapnet.dev/blog/netcode-architectures-part-1-lockstep/)
+- [SnapNet: Netcode Architectures Part 2 - Rollback](https://www.snapnet.dev/blog/netcode-architectures-part-2-rollback/)
+- [RACS: Referee Anti-Cheat Scheme for P2P Gaming](https://www.researchgate.net/publication/228890272_RACS_a_referee_anti-cheat_scheme_for_P2P_gaming)
+- [CRDT-Based Game State Synchronization in P2P VR (arXiv, March 2025)](https://arxiv.org/abs/2503.17826)
+- [Game Networking Resources (curated list)](https://github.com/miwarnec/Game-Networking-Resources)
 
 ### Netrek Protocol & Networking
 - [Netrek Protocol Details - fadden.com](https://fadden.com/gaming/netrek.html)
