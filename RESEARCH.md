@@ -59,6 +59,8 @@ Key evolution: Xtrek II (1988) moved from using X as a transport to having its *
 
 Each team has **10 planets**, with the first being the home planet. Typical games are 2-team (Federation vs. Romulans being most common).
 
+When each active team has at least **4 players**, the server enters **Tournament Mode (T-Mode)**, which enables planet bombing and capture. Below 4v4, only combat is possible.
+
 ### Ship Types
 
 Each ship type has unique attributes (speed, turning, hull, shields, fuel, weapons):
@@ -70,8 +72,8 @@ Each ship type has unique attributes (speed, turning, hull, shields, fuel, weapo
 | **Cruiser (CA)** | General purpose | Balanced stats, most common |
 | **Battleship (BB)** | Heavy combat | Slow but extremely powerful, point defense |
 | **Assault Ship (AS)** | Planet assault | Carries many armies, relatively fragile |
-| **Starbase (SB)** | Defense platform | Stationary or near-stationary, very powerful |
-| **Galaxy (GA)** | Heavy cruiser | Good all-around with extra fuel |
+| **Starbase (SB)** | Defense platform | Near-stationary, very powerful phasers/tractors, one per team, requires Commander rank, 20-min rebuild timer, has **Transwarp** (allies warp to it at warp 60) |
+| **Galaxy (GA)** | Heavy cruiser | Enhanced cruiser (faster, better shields), only in some variants |
 
 ### Weapons
 
@@ -81,12 +83,19 @@ Each ship type has unique attributes (speed, turning, hull, shields, fuel, weapo
 - **Tractor/Pressor Beams**: Pull or push other ships
 - **Mines**: Dropped torpedoes (stationary)
 
+### Defensive Systems & Resources
+
+- **Shields**: Toggle on/off, consume fuel, absorb damage. Once shields are down, hull takes damage. Hull damage reduces max speed.
+- **Fuel**: All systems consume fuel (weapons, shields, cloaking, engines). Regenerates over time, faster when orbiting a fuel planet. Running out of fuel is catastrophic.
+- **Repair**: Ships repair hull/shields over time, faster when orbiting a repair planet or starbase. Repair is faster with shields down.
+
 ### Cloaking
 
 Ships can **cloak** to become invisible to enemies. While cloaked:
 - Cannot fire weapons (phasers/torpedoes)
 - CAN bomb planets, beam armies, and repair
-- Fuel consumption increases
+- Fuel consumption increases significantly
+- **Uncloaking takes 0.7 seconds** (cannot fire until fully uncloaked)
 - Creates tactical stealth gameplay for army runs
 
 ### Strategic Layer: Armies & Planet Capture
