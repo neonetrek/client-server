@@ -24,8 +24,19 @@ const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '..', 'web-cli
 
 // Express app serves the web client
 const app = express();
+
+// Health check endpoint for container orchestrators
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    connections: wss ? wss.clients.size : 0,
+    netrek: { host: NETREK_HOST, port: NETREK_PORT },
+  });
+});
+
 app.use(express.static(STATIC_DIR));
-// SPA fallback
+// SPA fallback (exclude /health and /ws)
 app.get('*', (req, res) => {
   res.sendFile(path.join(STATIC_DIR, 'index.html'));
 });

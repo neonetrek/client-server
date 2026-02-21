@@ -19,7 +19,7 @@ interface FormatField {
   count?: number;      // for strings: character count
 }
 
-function parseFormat(fmt: string): { fields: FormatField[]; totalSize: number } {
+export function parseFormat(fmt: string): { fields: FormatField[]; totalSize: number } {
   const fields: FormatField[] = [];
   let totalSize = 0;
   let i = 0;
@@ -94,7 +94,7 @@ function parseFormat(fmt: string): { fields: FormatField[]; totalSize: number } 
         }
         break;
       default:
-        console.warn(`Unknown format char: ${ch}`);
+        throw new Error(`Unknown format char: '${ch}' in format '${fmt}'`);
     }
   }
 
@@ -115,7 +115,15 @@ function getFormat(fmt: string) {
 
 /** Decode a binary packet according to a format string */
 export function unpack(fmt: string, buffer: DataView, offset: number = 0): (number | string)[] {
-  const { fields } = getFormat(fmt);
+  const { fields, totalSize } = getFormat(fmt);
+
+  // Bounds check: ensure buffer has enough data
+  if (offset + totalSize > buffer.byteLength) {
+    throw new RangeError(
+      `unpack: buffer too small. Need ${offset + totalSize} bytes, have ${buffer.byteLength}`
+    );
+  }
+
   const result: (number | string)[] = [];
   let pos = offset;
 
@@ -177,34 +185,34 @@ export function pack(fmt: string, ...values: (number | string)[]): ArrayBuffer {
   for (const field of fields) {
     switch (field.type) {
       case 'int8':
-        view.setInt8(pos, values[valIdx++] as number);
+        view.setInt8(pos, (values[valIdx++] as number) ?? 0);
         pos += 1;
         break;
       case 'uint8':
-        view.setUint8(pos, values[valIdx++] as number);
+        view.setUint8(pos, (values[valIdx++] as number) ?? 0);
         pos += 1;
         break;
       case 'int16':
-        view.setInt16(pos, values[valIdx++] as number, false);
+        view.setInt16(pos, (values[valIdx++] as number) ?? 0, false);
         pos += 2;
         break;
       case 'uint16':
-        view.setUint16(pos, values[valIdx++] as number, false);
+        view.setUint16(pos, (values[valIdx++] as number) ?? 0, false);
         pos += 2;
         break;
       case 'int32':
-        view.setInt32(pos, values[valIdx++] as number, false);
+        view.setInt32(pos, (values[valIdx++] as number) ?? 0, false);
         pos += 4;
         break;
       case 'uint32':
-        view.setUint32(pos, values[valIdx++] as number, false);
+        view.setUint32(pos, (values[valIdx++] as number) ?? 0, false);
         pos += 4;
         break;
       case 'pad':
         pos += 1;
         break;
       case 'string': {
-        const str = values[valIdx++] as string;
+        const str = (values[valIdx++] as string) ?? '';
         const encoded = new TextEncoder().encode(str);
         const len = Math.min(encoded.length, field.count!);
         bytes.set(encoded.subarray(0, len), pos);

@@ -11,12 +11,12 @@ import {
   TMOVE, TEXPLODE,
   PTMOVE, PTEXPLODE,
   PHMISS, PHHIT, PHHIT2,
-  PFSHIELD, PFCLOAK, PFORBIT, PFREPAIR,
+  PFSHIELD, PFCLOAK, PFORBIT, PFREPAIR, PFBOMB,
   PFGREEN, PFYELLOW, PFRED,
   PLREPAIR, PLFUEL, PLAGRI, PLHOME,
-  TEAM_COLORS, TEAM_LETTERS, SHIP_SHORT,
+  TEAM_COLORS, TEAM_LETTERS, SHIP_SHORT, SHIP_STATS,
   FED, ROM, KLI, ORI, IND,
-  MAXTORP,
+  MAXTORP, MAXPLAYER,
 } from './constants';
 
 const TAC_SIZE = 500;  // Tactical canvas logical size
@@ -143,7 +143,7 @@ export class Renderer {
         const sy = (torp.y - cy + TAC_RANGE / 2) * scale;
         if (sx < -5 || sx > size + 5 || sy < -5 || sy > size + 5) continue;
 
-        const owner = s.players[torp.owner];
+        const owner = torp.owner >= 0 && torp.owner < MAXPLAYER ? s.players[torp.owner] : null;
         ctx.fillStyle = owner && owner.number === s.myNumber
           ? '#fff'
           : (TEAM_COLORS[owner?.team ?? IND] ?? '#888');
@@ -185,6 +185,7 @@ export class Renderer {
       if (phaser.fuse <= 0) continue;
       phaser.fuse--;
 
+      if (phaser.number < 0 || phaser.number >= MAXPLAYER) continue;
       const owner = s.players[phaser.number];
       if (!owner || owner.status !== PALIVE) continue;
 
@@ -313,6 +314,15 @@ export class Renderer {
     ctx.fillStyle = color + '33';
     ctx.fill();
 
+    // Home planet indicator
+    if (planet.flags & PLHOME) {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(sx, sy, radius + 3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     // Resource indicators
     let indicators = '';
     if (planet.flags & PLREPAIR) indicators += 'R';
@@ -356,37 +366,43 @@ export class Renderer {
     const x = size - barWidth - 12;
     let y = 12;
 
+    // Get ship-specific max values
+    const stats = SHIP_STATS[me.shipType];
+    const maxShield = stats?.shields ?? 100;
+    const maxHull = stats?.hull ?? 100;
+    const maxFuel = stats?.fuel ?? 10000;
+
     // Alert color background indicator
     let alertColor = '#008800';
     if (me.flags & PFRED) alertColor = '#880000';
     else if (me.flags & PFYELLOW) alertColor = '#888800';
 
     ctx.fillStyle = alertColor + '44';
-    ctx.fillRect(x - 4, y - 4, barWidth + 16, 120);
+    ctx.fillRect(x - 4, y - 4, barWidth + 16, 136);
 
     // Shields
-    this.drawBar(ctx, 'SH', me.shield, 100, x, y, barWidth, barHeight, '#00ccff');
+    this.drawBar(ctx, 'SH', me.shield, maxShield, x, y, barWidth, barHeight, '#00ccff');
     y += 16;
 
-    // Hull
-    this.drawBar(ctx, 'HU', me.hull, 100, x, y, barWidth, barHeight, '#cc8800');
+    // Hull (damage)
+    this.drawBar(ctx, 'HU', me.hull, maxHull, x, y, barWidth, barHeight, '#cc8800');
     y += 16;
 
     // Fuel
-    this.drawBar(ctx, 'FU', me.fuel, 10000, x, y, barWidth, barHeight, '#00ff00');
+    this.drawBar(ctx, 'FU', me.fuel, maxFuel, x, y, barWidth, barHeight, '#00ff00');
     y += 16;
 
     // Weapon temp
-    this.drawBar(ctx, 'WT', me.wTemp, 1000, x, y, barWidth, barHeight, '#ff4444');
+    this.drawBar(ctx, 'WT', me.wTemp, 1200, x, y, barWidth, barHeight, '#ff4444');
     y += 16;
 
     // Engine temp
-    this.drawBar(ctx, 'ET', me.eTemp, 1000, x, y, barWidth, barHeight, '#ff8844');
+    this.drawBar(ctx, 'ET', me.eTemp, 1200, x, y, barWidth, barHeight, '#ff8844');
     y += 16;
 
-    // Speed
+    // Speed and armies
     ctx.fillStyle = '#0f0';
-    ctx.fillText(`Spd: ${me.speed}  Arm: ${me.armies}`, x, y + 8);
+    ctx.fillText(`Spd: ${me.speed}  Arm: ${me.armies}  K: ${me.kills.toFixed(2)}`, x, y + 8);
     y += 16;
 
     // Flags
@@ -395,6 +411,7 @@ export class Renderer {
     if (me.flags & PFCLOAK) flags.push('CL');
     if (me.flags & PFORBIT) flags.push('OR');
     if (me.flags & PFREPAIR) flags.push('RP');
+    if (me.flags & PFBOMB) flags.push('BM');
     ctx.fillText(flags.join(' '), x, y + 8);
   }
 
