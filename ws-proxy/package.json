@@ -1,0 +1,13 @@
+{
+  "name": "neonetrek-ws-proxy",
+  "version": "1.0.0",
+  "description": "WebSocket-to-TCP proxy for Netrek server + static file server",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "express": "^4.18.2"
+  }
+}

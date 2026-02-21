@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  neonetrek:
+    build: .
+    ports:
+      - "3000:3000"   # Web UI + WebSocket proxy
+      - "2592:2592"   # Raw Netrek TCP (optional, for native clients)
+    environment:
+      - NETREK_PORT=2592
+      - WS_PORT=3000
+    restart: unless-stopped
