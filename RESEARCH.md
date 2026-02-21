@@ -483,126 +483,219 @@ A March 2025 research paper demonstrated **delta state CRDTs with dynamic strate
 
 ---
 
+## Revised Approach: Dockerized Server + Modern Web Client
+
+After analyzing the existing codebases, the P2P approach was abandoned in favor of a more practical architecture: **Docker-wrap the battle-tested C server** and **build a new web client from scratch**.
+
+### Why Not P2P?
+
+The P2P research above remains valuable context, but practical concerns favor a server:
+- Anti-cheat is trivially solved with an authoritative server
+- NAT traversal / TURN infrastructure is still needed for P2P (not truly serverless)
+- The C server already has 30+ years of balanced game logic — reimplementing it is months of work
+- Docker makes server deployment nearly as easy as "one-click"
+
+### Why Not Rewrite the Server?
+
+The existing C server was analyzed in depth:
+- **Compiles cleanly** on modern Linux (Ubuntu 24.04, GCC 13.3) with zero source changes
+- **Minimal runtime dependencies**: just `libc`, `libm`, `libgdbm`, `libcrypt`
+- **~100,000 lines of C** with ~4,600 lines of game simulation in `daemon.c` alone
+- Decades of combat balance, edge-case handling, and protocol refinement
+- **Rewrite estimate: 3-6 months.** Docker wrapping: **1-2 days.**
+
+### Why Rewrite the Web Client?
+
+The existing [html5-netrek](https://github.com/apsillers/html5-netrek) was analyzed:
+- **~4,300 lines** of ES5 JavaScript (2012 era), abandoned since 2020
+- Rendering coupled to **Cake.js** (dead library from 2007, 9,400 lines, no npm package)
+- **Socket.io 0.9** (2014) with 5 known security vulnerabilities
+- No modules, no build system, no tests, globals everywhere
+- Multiple bugs found (undefined `CP_FEATURE`, missing `CP_REPRESS` code, typos)
+- **Verdict: rewrite from scratch**, but extract protocol definitions as a spec
+
+**What's salvageable from html5-netrek:**
+- `packets.js` — Protocol format strings (the most valuable artifact)
+- `constants.js` — Ship stats, flag bits, team IDs
+- `data/img/` — Ship sprites and planet art (from COW client)
+
+---
+
 ## Proposed Architecture
 
-### Recommended: Hybrid Host-Authority with P2P DataChannels
+### Docker Container: C Server + WebSocket Proxy + Web UI
 
 ```
-                    ┌─────────────────┐
-                    │   Trystero       │
-                    │  (Signaling via  │
-                    │  BitTorrent/     │
-                    │  Nostr/MQTT)     │
-                    └────────┬────────┘
-                             │ SDP Exchange
-                    ┌────────▼────────┐
-              ┌────→│   Host Peer     │←────┐
-              │     │  (Authoritative │     │
-              │     │   Simulation)   │     │
-              │     └─┬───┬───┬───┬──┘     │
-              │       │   │   │   │        │
-    WebRTC    │       │   │   │   │        │   WebRTC
-  DataChannel │       │   │   │   │        │ DataChannel
-              │       │   │   │   │        │
-         ┌────▼──┐ ┌──▼─┐ │ ┌▼──┐ ┌──────▼┐
-         │Peer 2 │ │P 3 │ │ │P 5│ │Peer 16│
-         └───────┘ └────┘ │ └───┘ └───────┘
-                       ┌───▼─┐
-                       │P  4 │
-                       └─────┘
+┌─────────────────────────────────────────────────────┐
+│                 Docker Container                     │
+│                                                      │
+│  ┌──────────┐     ┌──────────────┐     ┌──────────┐ │
+│  │  Netrek   │◄───►│  WS-to-TCP   │◄───►│  Web UI  │ │
+│  │  Server   │TCP  │    Proxy     │ WS  │ (static) │ │
+│  │ (C, port  │     │  (Node.js)   │     │          │ │
+│  │  2592)    │     │              │     │          │ │
+│  └──────────┘     └──────────────┘     └──────────┘ │
+│       ▲                  ▲                   ▲       │
+│       │                  │                   │       │
+└───────┼──────────────────┼───────────────────┼───────┘
+        │                  │                   │
+   Port 2592          Port 3000           Port 8080
+   (legacy TCP       (WebSocket          (HTTP / Web UI)
+    clients)          for browser)
 ```
 
-### Why Host-Authority (Star Topology)?
+### How It Works
 
-1. **Simplest correct implementation** — one peer runs the authoritative simulation
-2. **Mirrors original Netrek architecture** — game logic largely unchanged
-3. **No consensus needed** for game state
-4. **Anti-cheat**: Host validates all inputs (just like original server)
-5. **Bandwidth efficient**: Host broadcasts state; peers send only inputs
-6. **15 connections** (host to each peer) vs. 120 for full mesh
+1. **Netrek C server** runs as-is inside the container, listening on TCP port 2592
+2. **WebSocket proxy** (lightweight Node.js/Bun process) bridges browser WebSocket connections to the C server's TCP protocol
+3. **Static web server** serves the modern HTML5 client
+4. **Single container** exposes all three ports (or just port 8080 for WebSocket-only mode)
 
-### Architecture Layers
+### Server Architecture (Inside the Container)
+
+The C server uses a multi-process architecture with SysV shared memory:
+
+```
+netrekd (newstartd)          -- connection listener, binds port 2592
+    ├── fork() → ntserv      -- per-player process (up to 32)
+    ├── fork() → ntserv      -- another player
+    └── ...
+
+daemon                       -- game simulation (fixed-rate loop)
+    ├── fork() → basep       -- base practice robot
+    ├── fork() → newbie      -- newbie helper robot
+    └── ...
+
+Shared memory (~454 KB)      -- ALL game state
+    ├── players[32]           -- 4,760 bytes each
+    ├── torps[32 × 9]        -- torpedoes in flight
+    ├── planets[40]           -- planet state
+    ├── phasers[32]           -- phaser state
+    ├── teams[5]              -- team data
+    ├── shipvals[NUM_TYPES]   -- ship type definitions
+    └── messages[]            -- chat buffer
+```
+
+SysV shared memory and semaphores work fine in Docker containers (namespace-isolated).
+
+### Web Client Architecture (New Build)
 
 ```
 ┌─────────────────────────────────────────────┐
 │                  UI Layer                    │
-│         HTML5 Canvas / WebGL rendering       │
-│         Keyboard/mouse/gamepad input         │
+│        HTML5 Canvas 2D rendering             │
+│        Keyboard/mouse/touch input            │
 ├─────────────────────────────────────────────┤
-│              Game Logic Layer                │
-│    Ship physics, torpedo simulation,         │
-│    phaser calculations, army management,     │
-│    planet capture logic                      │
+│              Game State Layer                │
+│    Local state mirror, interpolation,        │
+│    HUD, player list, chat                    │
 ├─────────────────────────────────────────────┤
-│            Network Abstraction               │
-│    Reliable channel (events/chat)            │
-│    Unreliable channel (positions/state)      │
+│            Protocol Layer                    │
+│    Binary packet encode/decode               │
+│    (ported from packets.js format strings)   │
 ├─────────────────────────────────────────────┤
-│              P2P Transport                   │
-│         WebRTC DataChannels                  │
-│    Trystero (serverless signaling)           │
-│    STUN/TURN (NAT traversal)                │
+│            WebSocket Transport               │
+│    Connects to WS proxy on port 3000         │
+│    Binary frames (ArrayBuffer)               │
 └─────────────────────────────────────────────┘
 ```
 
-### Tech Stack Recommendation
+### Tech Stack
 
-| Layer | Technology | Rationale |
-|-------|-----------|-----------|
-| **Signaling** | Trystero (Nostr or BitTorrent strategy) | Truly serverless, no backend needed |
-| **P2P Transport** | WebRTC DataChannels (via Trystero) | Low-latency, unreliable + reliable modes |
-| **Game State** | TypedArrays / binary protocol | Efficient, matches original Netrek style |
-| **Rendering** | HTML5 Canvas 2D | Simple, performant for 2D, well-supported |
-| **Game Loop** | requestAnimationFrame + fixed timestep | Smooth rendering with deterministic simulation |
-| **UI Framework** | Vanilla JS or lightweight (Preact) | Minimal overhead |
-| **Build** | Vite | Fast dev server, modern bundling |
+| Component | Technology | Rationale |
+|-----------|-----------|-----------|
+| **Game server** | Existing C server (Vanilla Netrek) | 30+ years of battle-tested logic |
+| **WS proxy** | Node.js / Bun (~50 lines) | Bridge WebSocket ↔ TCP |
+| **Web client** | TypeScript + Canvas 2D | Modern, type-safe, no framework overhead |
+| **Build** | Vite | Fast dev, modern bundling |
+| **Container** | Docker multi-stage | Debian slim, minimal footprint |
+| **Process manager** | supervisord or s6 | Manage multiple processes in one container |
 
-### Game Flow
+### Deployment Options
 
-1. **Create Game**: Host peer creates a "room" via Trystero (generates shareable room ID)
-2. **Join Game**: Other peers join using room ID (could be a URL like `neonetrek.github.io/#room=abc123`)
-3. **Lobby**: Players pick teams and ships
-4. **Play**: Host runs simulation, broadcasts state; peers send inputs
-5. **Host Migration** (optional): If host disconnects, peer with lowest latency takes over using last known state snapshot
+| Platform | Ports | One-Click | Notes |
+|----------|-------|-----------|-------|
+| **Docker Compose** | All (2592, 3000, 8080) | `docker compose up` | Local dev + self-hosted |
+| **Fly.io** | All (TCP + HTTP) | `fly launch` | Best for production, ~$5/mo |
+| **Railway** | WS + HTTP (random TCP port) | Deploy button | Best DX, free tier |
+| **Render** | HTTP only | GitHub connect | WebSocket-only mode |
+| **Any VPS** | All | `docker run` | Full control |
 
-### Data Budget (per update, ~10 Hz)
+### WebSocket-Only Mode
 
-| Data | Size (bytes) | Notes |
-|------|-------------|-------|
-| 16 player positions/states | ~640 | 40 bytes each (x, y, dir, speed, shield, hull, fuel, flags) |
-| 40 planet states | ~320 | 8 bytes each (owner, armies, flags) |
-| Active torpedoes (~50 max) | ~400 | 8 bytes each (x, y, dir, status) |
-| Active phasers (~8 max) | ~80 | 10 bytes each |
-| **Total per update** | **~1.5 KB** | |
-| **At 10 Hz** | **~15 KB/s** | Very manageable for modern connections |
+If the deployment platform doesn't support raw TCP (Railway random ports, Render), the container can run in **WebSocket-only mode**:
+- Web client connects directly via WebSocket
+- No legacy TCP port exposed
+- Deployable on every platform
+- Trade-off: legacy C/X11 Netrek clients can't connect directly
+
+### Dockerfile (Approximate)
+
+```dockerfile
+FROM debian:bookworm-slim AS builder
+RUN apt-get update && apt-get install -y \
+    build-essential autoconf automake libtool libgdbm-dev
+COPY netrek-server/ /src
+WORKDIR /src
+RUN sh autogen.sh && ./configure --prefix=/opt/netrek && make && make install
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y \
+    libgdbm6 libcrypt1 nodejs npm supervisor && \
+    rm -rf /var/lib/apt/lists/*
+COPY --from=builder /opt/netrek /opt/netrek
+COPY ws-proxy/ /opt/ws-proxy
+COPY web-client/dist/ /opt/web-client
+COPY supervisord.conf /etc/supervisor/conf.d/
+EXPOSE 2592 3000 8080
+CMD ["supervisord", "-n"]
+```
 
 ---
 
-## Open Questions & Challenges
+## Implementation Plan
 
-### Must Solve
+### Phase 1: Dockerized C Server (MVP)
+1. Write Dockerfile for the Netrek vanilla server
+2. Write a minimal WebSocket-to-TCP proxy (~50 lines)
+3. Verify legacy clients can connect to the containerized server
+4. Add docker-compose.yml for local dev
+5. **Deliverable: Anyone can run a Netrek server with `docker compose up`**
 
-1. **Host migration**: What happens when the host disconnects mid-game?
-2. **TURN fallback**: Who pays for TURN servers? Can we use free public ones?
-3. **Torp wobble**: Use deterministic seeded PRNG? Or send full torp state each tick?
-4. **Latency compensation**: How much client-side prediction for non-host peers?
+### Phase 2: Modern Web Client
+1. Extract protocol spec from html5-netrek's packets.js/constants.js
+2. Build TypeScript protocol layer (binary packet encode/decode via DataView)
+3. Build Canvas 2D renderer (tactical view + galactic map)
+4. Implement core gameplay: movement, torpedoes, phasers, shields
+5. Implement outfitting screen (team/ship selection)
+6. Add HUD (fuel, hull, shields, speed, army count)
+7. Add chat (team/all/individual messages)
+8. **Deliverable: Playable web client connecting to the Docker server**
 
-### Nice to Solve
+### Phase 3: Polish & Deploy
+1. Add one-click deploy button for Railway
+2. Add fly.toml for Fly.io deployment
+3. Mobile/touch controls
+4. Sound effects
+5. Tutorial/onboarding for new players
+6. **Deliverable: One-click deployable Netrek with web UI**
 
-5. **Spectator mode**: How do observers connect?
-6. **Reconnection**: Can a disconnected player rejoin?
-7. **Cross-browser determinism**: Floating point consistency for lockstep (if we go that route)
-8. **Mobile support**: Touch controls for phones/tablets
-9. **Bot players**: Can we add AI players to fill empty slots?
-10. **Persistent stats**: Where to store player rankings without a server? (Could use Nostr, IPFS, or a lightweight leaderboard service)
+### Phase 4: Optional Enhancements
+- Bot players for single-player practice
+- Spectator mode
+- Game recording/replay
+- Leaderboard/stats persistence
+- Custom themes/skins
 
-### Design Decisions Needed
+---
 
-11. **Faithful recreation vs. reimagining?** Keep original mechanics exactly, or modernize?
-12. **Ship balance**: Use original Netrek values or rebalance for casual play?
-13. **Map size**: Original 40 planets, or smaller for quick games?
-14. **Team count**: Support 4 teams like original, or simplify to 2?
-15. **Minimum viable game**: What's the smallest playable version? (2 players, 2 teams, basic combat?)
+## Open Questions
+
+1. **Process manager**: supervisord vs. s6-overlay vs. custom shell script for managing multiple processes in Docker?
+2. **WebSocket proxy protocol**: Pass raw Netrek binary packets over WS frames, or define a new JSON protocol? (Raw binary is simpler and preserves compatibility)
+3. **Client rendering**: Canvas 2D vs. PixiJS vs. raw WebGL? (Canvas 2D is simplest for 2D)
+4. **Legacy client support**: Is backward compatibility with COW/NetrekXP clients a goal?
+5. **Mobile**: How important is mobile/touch support in Phase 2 vs. Phase 3?
 
 ---
 
