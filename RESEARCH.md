@@ -160,23 +160,74 @@ Netrek pioneered a **dual TCP/UDP protocol**:
 
 Rationale: If a position update is lost, the next one supersedes it. TCP's guaranteed delivery would cause **head-of-line blocking** — delaying fresh updates while waiting for stale retransmissions.
 
+#### Packet Format
+
+- Every packet starts with a **1-byte type identifier**
+- Fixed-size packets (most types) or variable-length (size in byte 3)
+- Multi-byte integers in **network byte order** (big-endian)
+- Packets aligned to **4-byte boundaries**
+- Sequence numbers for UDP packet ordering
+
+#### Connection Lifecycle
+
+1. **Connect**: Client establishes TCP connection, sends `CP_SOCKET`
+2. **MOTD**: Server sends `SP_MOTD` (message of the day) and `SP_QUEUE` (queue position)
+3. **Login**: Client sends `CP_LOGIN` with credentials; server responds with `SP_LOGIN`
+4. **Outfit**: Server sends `SP_MASK` (available teams); client sends `CP_OUTFIT` (team/ship selection)
+5. **Play**: Real-time exchange of game state packets
+6. **Quit**: Client sends `CP_QUIT` (self-destruct), then `CP_BYE` to disconnect
+
 #### Packet Types
 
-Packets are categorized as:
-- **`SP_*` (Server Packets)**: Server → Client updates
-  - `SP_PLAYER`: Player ship position, direction, speed
-  - `SP_TORP`: Torpedo position
-  - `SP_PLANET`: Planet ownership, armies, flags
-  - `SP_YOU`: Your own ship's detailed state
-  - `SP_PHASER`: Phaser firing events
-  - etc.
-- **`CP_*` (Client Packets)**: Client → Server inputs
-  - `CP_SPEED`: Set speed
-  - `CP_DIRECTION`: Set heading
-  - `CP_PHASER`: Fire phaser at coordinates
-  - `CP_TORP`: Fire torpedo in direction
-  - `CP_BOMB`: Toggle bombing
-  - etc.
+**Server → Client (SP_*):**
+```
+SP_MESSAGE      (1)  -- Chat messages
+SP_PLAYER_INFO  (2)  -- Player metadata
+SP_KILLS        (3)  -- Kill counts
+SP_PLAYER       (4)  -- Player position (x, y, direction, speed)
+SP_TORP_INFO    (5)  -- Torpedo status
+SP_TORP         (6)  -- Torpedo position
+SP_PHASER       (7)  -- Phaser fire
+SP_PLASMA_INFO  (8)  -- Plasma torpedo status
+SP_YOU         (12)  -- Current player's detailed state
+SP_PLANET      (15)  -- Planet data (owner, armies, flags)
+SP_FLAGS       (18)  -- Player flags
+SP_PING        (46)  -- Latency measurement
+SP_FEATURE     (60)  -- Feature negotiation
+SP_LTD         (62)  -- Long-term stats
+```
+
+**Client → Server (CP_*):**
+```
+CP_SPEED        (2)  -- Set ship speed
+CP_DIRECTION    (3)  -- Set heading
+CP_PHASER       (4)  -- Fire phaser
+CP_TORP         (6)  -- Fire torpedo
+CP_LOGIN        (8)  -- Authentication
+CP_OUTFIT       (9)  -- Ship/team selection
+CP_WAR         (10)  -- Declare war
+CP_SHIELD      (12)  -- Toggle shields
+CP_CLOAK       (19)  -- Toggle cloaking
+CP_BYE         (29)  -- Disconnect
+```
+
+**Example struct (player position):**
+```c
+struct player_spacket {
+    char type;          // SP_PLAYER (4)
+    char pnum;          // Player number
+    unsigned char dir;  // Direction (0-255)
+    char speed;         // Speed
+    LONG x, y;          // Galactic coordinates
+};
+```
+
+#### Bandwidth Optimizations
+
+- **Short packets**: Compressed format (`SP_S_PLAYER`, `SP_S_TORP`) for reduced bandwidth
+- **Visibility culling**: Players only receive full data for entities in their tactical view
+- **Cloaking levels**: 5 granularity levels from `UPDT_ALL` (full data) to `UPDT_LEAST` (bogus position)
+- **UDP modes**: SIMPLE, FAT (batched updates), DOUBLE (semi-critical channel)
 
 #### Direction Encoding
 
