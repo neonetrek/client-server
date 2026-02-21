@@ -13,7 +13,6 @@ import {
   FED, ROM, KLI, ORI,
   SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, STARBASE, SGALAXY,
   MALL, MTEAM, MINDIV,
-  MAXPLAYER,
 } from './constants';
 
 const MAX_LOGIN_LEN = 15; // 16 bytes minus null terminator

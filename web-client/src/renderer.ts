@@ -90,6 +90,10 @@ export class Renderer {
     const s = this.state;
     const size = this.canvasSize;
 
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.font = '11px monospace';
+
     // Clear
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, size, size);
@@ -253,6 +257,8 @@ export class Renderer {
       ctx.fillStyle = `rgba(0, 255, 0, ${alpha})`;
       ctx.fillText(msg.text, 8, size - 40 + i * 14);
     }
+
+    ctx.restore();
   }
 
   private drawTacShip(ctx: CanvasRenderingContext2D, player: Player, sx: number, sy: number) {
@@ -361,6 +367,10 @@ export class Renderer {
   // ============================================================
 
   private renderHUD(ctx: CanvasRenderingContext2D, size: number, me: Player) {
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.font = '11px monospace';
+
     const barWidth = 120;
     const barHeight = 8;
     const x = size - barWidth - 12;
@@ -413,6 +423,8 @@ export class Renderer {
     if (me.flags & PFREPAIR) flags.push('RP');
     if (me.flags & PFBOMB) flags.push('BM');
     ctx.fillText(flags.join(' '), x, y + 8);
+
+    ctx.restore();
   }
 
   private drawBar(
@@ -447,6 +459,10 @@ export class Renderer {
     const s = this.state;
     const size = this.canvasSize;
     const scale = size / GWIDTH;
+
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.font = '10px monospace';
 
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, size, size);
@@ -510,6 +526,8 @@ export class Renderer {
       ctx.strokeStyle = '#444';
       ctx.strokeRect(mx - halfRange, my - halfRange, halfRange * 2, halfRange * 2);
     }
+
+    ctx.restore();
   }
 
   // ============================================================
