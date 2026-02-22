@@ -94,6 +94,7 @@ void readsysdefaults(void)
     tournplayers=5;
     udpAllowed=1;		/* UDP */
     top_armies = 30;            /* added 11/27/93 ATH */
+    min_carry_kills = 1;
     planet_move = 0;		/* added 9/28/92 NBT */
     wrap_galaxy = 0;		/* added 6/28/95 JRP */
     pingpong_plasma = 0;	/* added 7/6/95 JRP */

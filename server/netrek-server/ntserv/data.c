@@ -74,6 +74,7 @@ char	*ip;
 int	userVersion=0, userUdpVersion=0;
 int	bypassed=0;
 int	top_armies=30;		/*initial army count default */
+int	min_carry_kills=1;	/* min kills to carry armies (0=no requirement) */
 int	errorlevel=1;		/* controlling amount of error info */
 int	dead_warp=0;		/* use warp 14 for death detection */
 int	surrenderStart=1;	/* # of planets to start surrender counter */

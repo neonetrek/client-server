@@ -124,6 +124,7 @@ extern int	clueinterval;
 extern int	cluedelay;
 extern int	bypassed;
 extern int	top_armies;            /* 11/27/93 ATH */
+extern int	min_carry_kills;
 extern int	errorlevel;
 extern int	dead_warp;
 extern int	surrenderStart;

@@ -159,6 +159,8 @@ struct sysdef_keywords {
     "Vector torps (unimplemented)" },
   { "START_ARMIES",	SYSDEF_INT,	&top_armies,
     "Starting planet army count" },
+  { "MIN_CARRY_KILLS",	SYSDEF_INT,	&min_carry_kills,
+    "Minimum kills to carry armies (0=no requirement)" },
   { "ERROR_LEVEL",	SYSDEF_INT,	&errorlevel,
     "Server error log verbosity level" },
 #ifdef BASEPRACTICE

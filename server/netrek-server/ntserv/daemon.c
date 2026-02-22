@@ -3230,11 +3230,18 @@ static void beam(void)
             if (j->p_armies >= j->p_ship.s_maxarmies)
                 continue;
             if (j->p_ship.s_type == ASSAULT) {
-                if (j->p_armies >= (int)((float)((int)(j->p_kills*100)/100.0) * 3.0))
-                    continue;
-            } else if (j->p_ship.s_type != STARBASE)
-                if (j->p_armies >= (int)((float)((int)(j->p_kills*100)/100.0) * 2.0))
-                    continue;
+                int cap;
+                if (j->p_kills < (float)min_carry_kills) continue;
+                cap = (int)((float)((int)(j->p_kills*100)/100.0) * 3.0);
+                if (cap < 4) cap = 4;
+                if (j->p_armies >= cap) continue;
+            } else if (j->p_ship.s_type != STARBASE) {
+                int cap;
+                if (j->p_kills < (float)min_carry_kills) continue;
+                cap = (int)((float)((int)(j->p_kills*100)/100.0) * 2.0);
+                if (cap < 4) cap = 4;
+                if (j->p_armies >= cap) continue;
+            }
             if (j->p_flags & PFORBIT) {
                 if (j->p_team != l->pl_owner)
                     continue;
