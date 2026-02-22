@@ -2,7 +2,7 @@
  * NeoNetrek WebSocket-to-TCP Proxy
  *
  * Bridges browser WebSocket connections to the Netrek C server's TCP port.
- * Also serves the static web client files.
+ * Serves the per-server portal at / and the web client at /play/.
  *
  * Architecture:
  *   Browser <--WebSocket--> this proxy <--TCP--> netrekd (C server)
@@ -21,8 +21,8 @@ const NETREK_HOST = process.env.NETREK_HOST || '127.0.0.1';
 const NETREK_PORT = parseInt(process.env.NETREK_PORT || '2592', 10);
 const WS_PORT = parseInt(process.env.WS_PORT || '3000', 10);
 const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '..', 'web-client', 'dist');
+const PORTAL_DIR = process.env.PORTAL_DIR || path.join(__dirname, '..', 'portal');
 
-// Express app serves the web client
 const app = express();
 
 // Health check endpoint for container orchestrators
@@ -35,10 +35,23 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.use(express.static(STATIC_DIR));
-// SPA fallback (exclude /health and /ws)
-app.get('*', (req, res) => {
+// Leaderboard API (placeholder - will read from player DB)
+app.get('/api/leaderboard', (req, res) => {
+  // TODO: Read from GDBM player database at /opt/netrek/var/players
+  // For now, return empty array indicating no data
+  res.json([]);
+});
+
+// Web client served at /play/
+app.use('/play', express.static(STATIC_DIR));
+app.get('/play/*', (req, res) => {
   res.sendFile(path.join(STATIC_DIR, 'index.html'));
+});
+
+// Server portal served at /
+app.use(express.static(PORTAL_DIR));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(PORTAL_DIR, 'index.html'));
 });
 
 const server = http.createServer(app);
@@ -99,6 +112,7 @@ wss.on('connection', (ws) => {
 
 server.listen(WS_PORT, '0.0.0.0', () => {
   console.log(`[proxy] NeoNetrek listening on port ${WS_PORT}`);
-  console.log(`[proxy] Static files: ${STATIC_DIR}`);
+  console.log(`[proxy] Portal: ${PORTAL_DIR} → /`);
+  console.log(`[proxy] Client: ${STATIC_DIR} → /play/`);
   console.log(`[proxy] Proxying WebSocket /ws → ${NETREK_HOST}:${NETREK_PORT}`);
 });

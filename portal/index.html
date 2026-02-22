@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeoNetrek Server Portal</title>
+  <link rel="stylesheet" href="css/portal.css">
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+
+<!-- Navigation -->
+<nav id="navbar">
+  <div class="nav-brand">
+    <span class="logo-icon">&#9733;</span>
+    <span class="logo-text">NeoNetrek</span>
+  </div>
+  <button class="nav-toggle" aria-label="Toggle navigation" onclick="document.getElementById('navbar').classList.toggle('open')">&#9776;</button>
+  <ul class="nav-links">
+    <li><a href="#info">Server Info</a></li>
+    <li><a href="#leaderboard">Leaderboard</a></li>
+    <li><a href="/play/" class="btn-play">Play Now</a></li>
+  </ul>
+</nav>
+
+<!-- Hero -->
+<header class="hero">
+  <div class="hero-content">
+    <h1 id="server-name">NeoNetrek Server</h1>
+    <p class="tagline" id="server-tagline">Welcome, pilot. Choose your ship and join the battle.</p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="stat-value" id="hero-players">--</span>
+        <span class="stat-label">Players Online</span>
+      </div>
+      <div class="hero-stat">
+        <span class="stat-value" id="hero-uptime">--</span>
+        <span class="stat-label">Uptime</span>
+      </div>
+      <div class="hero-stat">
+        <span class="stat-value" id="hero-status">--</span>
+        <span class="stat-label">Status</span>
+      </div>
+    </div>
+    <div class="hero-buttons">
+      <a href="/play/" class="btn btn-primary">Play Now</a>
+    </div>
+  </div>
+</header>
+
+<!-- Server Info -->
+<section id="info" class="section">
+  <div class="container">
+    <h2 class="section-title">Server Information</h2>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <h3>Connection</h3>
+        <div class="info-row">
+          <span class="info-label">Game Server</span>
+          <span class="info-value" id="cfg-host">--</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">WebSocket</span>
+          <span class="info-value" id="cfg-ws">--</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Location</span>
+          <span class="info-value" id="cfg-location">--</span>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>Message of the Day</h3>
+        <div class="motd" id="server-motd">
+          <p>Welcome to NeoNetrek! Join a team and fight for galactic domination.</p>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>Server Rules</h3>
+        <ul class="rules-list" id="server-rules">
+          <li>Be respectful to other players</li>
+          <li>No automated bots without permission</li>
+          <li>Team play is encouraged</li>
+          <li>Have fun!</li>
+        </ul>
+      </div>
+
+      <div class="info-card">
+        <h3>Host Contact</h3>
+        <div class="info-row">
+          <span class="info-label">Admin</span>
+          <span class="info-value" id="cfg-admin">--</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Contact</span>
+          <span class="info-value" id="cfg-contact">--</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Leaderboard -->
+<section id="leaderboard" class="section section-alt">
+  <div class="container">
+    <h2 class="section-title">Leaderboard</h2>
+    <p class="section-intro">Top pilots on this server, ranked by tournament ratings.</p>
+
+    <div class="lb-tabs">
+      <button class="lb-tab active" onclick="showLeaderboard('overall')">Overall</button>
+      <button class="lb-tab" onclick="showLeaderboard('offense')">Offense</button>
+      <button class="lb-tab" onclick="showLeaderboard('bombing')">Bombing</button>
+      <button class="lb-tab" onclick="showLeaderboard('planets')">Planets</button>
+    </div>
+
+    <div class="lb-wrap">
+      <table class="lb-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Pilot</th>
+            <th>Rank</th>
+            <th>Hours</th>
+            <th>Offense</th>
+            <th>Bombing</th>
+            <th>Planets</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="lb-body">
+        </tbody>
+      </table>
+      <p class="lb-empty" id="lb-empty">No player data available yet. Play some games to populate the leaderboard.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Play CTA -->
+<section class="section section-play">
+  <div class="container">
+    <div class="play-cta">
+      <h2>Ready to Launch?</h2>
+      <p>No downloads, no installs &mdash; just pure space combat in your browser.</p>
+      <a href="/play/" class="btn btn-primary btn-large">Launch NeoNetrek</a>
+      <p class="play-note">Requires a modern browser with WebSocket support.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-bottom">
+      <p>NeoNetrek Server Portal &bull; <a href="/play/">Play</a> &bull; <a href="#leaderboard">Leaderboard</a></p>
+      <p class="footer-heritage">Keeping the spirit of the internet's first team game alive.</p>
+    </div>
+  </div>
+</footer>
+
+<script src="config.js"></script>
+<script src="js/portal.js"></script>
+</body>
+</html>

@@ -52,6 +52,9 @@ RUN npm ci --production
 # Copy built web client
 COPY --from=client-builder /build/dist /opt/web-client
 
+# Copy server portal
+COPY portal/ /opt/portal/
+
 # Copy supervisor config and entrypoint
 COPY supervisord.conf /etc/supervisor/conf.d/neonetrek.conf
 COPY entrypoint.sh /opt/entrypoint.sh
