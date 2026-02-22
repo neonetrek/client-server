@@ -73,51 +73,71 @@ Enable the existing practice bots so players have opponents immediately.
 
 Allow a single deployment to host multiple independent game instances (e.g. "Pickup", "Practice with Bots", "Dogfight Arena") that players choose from the portal.
 
-#### 2a. `instances.json` — Single Source of Truth
+#### 2a. `config.json` — Single Source of Truth
 
-`instances.json` is the one file deployers edit to control which game modes their server offers. It lives at `/opt/instances.json` in the container (or `NETREK_INSTANCES` env var path). The entrypoint reads it and dynamically generates supervisord configs + per-instance var dirs.
+`config.json` is the one file deployers edit to control server branding and which game modes to offer. It lives at `/opt/config.json` in the container. The entrypoint reads it and dynamically generates supervisord configs + per-instance var dirs. The portal and ws-proxy also read it for branding and routing.
 
 Each netrekd instance uses **~200 MB** of memory. Deployers choose how many instances to run based on their container's memory budget.
 
 **Schema:**
 ```json
-[
-  {
-    "id": "pickup",
-    "name": "Pickup Game",
-    "description": "Standard Bronco, all welcome",
-    "port": 2592,
-    "sysdef": "sysdef-pickup",
-    "features": ["bronco", "16-player"]
+{
+  "server": {
+    "name": "My NeoNetrek Server",
+    "tagline": "A community Netrek server",
+    "location": "Ashburn, US",
+    "admin": "YourName",
+    "contact": "you@example.com",
+    "motd": "Welcome aboard, pilot!",
+    "rules": ["Be respectful", "Team play encouraged", "Have fun!"]
   },
-  {
-    "id": "bots",
-    "name": "Practice with Bots",
-    "description": "4v4 with robot opponents, great for learning",
-    "port": 2593,
-    "sysdef": "sysdef-bots",
-    "features": ["bots", "practice"]
-  }
-]
+  "instances": [
+    {
+      "id": "pickup",
+      "name": "Standard Pickup",
+      "description": "Classic Bronco team play — no bots, real players only",
+      "port": 2592,
+      "features": ["bronco", "pickup"],
+      "sysdef": {
+        "PRET": 0, "NEWBIE": 0, "DOGFIGHT": 0,
+        "FPS": 50, "DEFUPS": 25, "MAXUPS": 50,
+        "RESETGALAXY": 1, "SELF_RESET": 1
+      }
+    },
+    {
+      "id": "bots",
+      "name": "Practice with Bots",
+      "description": "Easy practice bots to learn the game",
+      "port": 2593,
+      "features": ["bots", "practice", "beginner"],
+      "sysdef": {
+        "PRET": 1, "PRET_GUEST": 1, "PRET_PLANETS": 3,
+        "PRET_SAVE_GALAXY": 1, "PRET_GALAXY_LIFETIME": 600,
+        "PRET_SAVE_ARMIES": 1,
+        "FPS": 50, "DEFUPS": 25, "MAXUPS": 50,
+        "RESETGALAXY": 1, "SELF_RESET": 1
+      }
+    }
+  ]
+}
 ```
 
-Fields:
+**`server` fields** (portal branding):
+- `name` — Server name shown in the portal header
+- `tagline` — Subtitle shown under the server name
+- `location` — Geographic location displayed on the portal
+- `admin` — Admin name for contact info
+- `contact` — Contact email or URL
+- `motd` — Message of the day shown to players
+- `rules` — Array of rules displayed on the portal
+
+**`instances[]` fields** (game mode definitions):
 - `id` — URL-safe identifier, used in `/ws/<id>` and `?server=<id>`
 - `name` — Display name on the portal card
 - `description` — One-line description shown under the name
 - `port` — Internal TCP port for this netrekd (must be unique per instance)
-- `sysdef` — Filename in `/opt/netrek/etc/` for this instance's config
 - `features` — Tags shown as badges on the portal card
-
-**Sysdef templates** ship in the base image at `/opt/netrek/etc/`:
-
-| Template | Key Settings |
-|----------|-------------|
-| `sysdef-pickup` | Standard Bronco, no auto-bots |
-| `sysdef-bots` | `PRET=1`, `MIN_NEWBIE_SLOTS=8` (maintains 4v4 with bots) |
-| `sysdef-dogfight` | `DOGFIGHT=1`, `CONTESTSIZE=2` |
-
-Deployers can override any template by copying their own sysdef into the image.
+- `sysdef` — Inline sysdef key/value pairs (written to `/opt/netrek/etc/sysdef-<id>` at startup)
 
 #### Per-Instance State Isolation
 
@@ -137,14 +157,13 @@ State files per instance:
 | `conquer` | Conquest records |
 | `logs/` | Server log files |
 
-**Dynamic supervisord generation**: The entrypoint reads `instances.json` and writes a supervisord config per instance, each with its own `LOCALSTATEDIR`. No static supervisord.conf edits needed.
+**Dynamic supervisord generation**: The entrypoint reads `config.json` and writes a supervisord config per instance, each with its own `LOCALSTATEDIR`. No static supervisord.conf edits needed.
 
 ```bash
 # entrypoint.sh (simplified)
-for instance in $(jq -r '.[] | @base64' /opt/instances.json); do
+for instance in $(jq -r '.instances[] | @base64' /opt/config.json); do
   id=$(echo $instance | base64 -d | jq -r '.id')
   port=$(echo $instance | base64 -d | jq -r '.port')
-  sysdef=$(echo $instance | base64 -d | jq -r '.sysdef')
 
   # Create per-instance state directory
   mkdir -p /opt/netrek/var/$id/logs
@@ -194,7 +213,7 @@ Currently the proxy has one WebSocket endpoint (`/ws`) pointing to one C server.
 ```
 
 **Changes to `ws-proxy/index.js`:**
-- Load `instances.json` at startup
+- Load `config.json` at startup
 - Build a map of `instanceId → port`
 - On WebSocket upgrade, parse the path to get the instance ID
 - Connect TCP to the corresponding port
@@ -262,12 +281,8 @@ const wsUrl = `${protocol}//${window.location.host}/ws/${instanceId}`;
 That's it — the client already connects to a WebSocket URL. Just make the URL include the instance ID.
 
 **Files changed (client-server base image):**
-- `Dockerfile` — enable all robot compile flags, copy template sysdef files, add `jq` to runtime
-- `instances.json` (new) — default single-instance config (backward compatible)
-- `sysdef-pickup` (new) — standard Bronco template
-- `sysdef-bots` (new) — bot practice template (`PRET=1`)
-- `sysdef-dogfight` (new) — dogfight mode template
-- `entrypoint.sh` — read `instances.json`, generate supervisord configs, create per-instance var dirs
+- `Dockerfile` — enable all robot compile flags, add `jq` to runtime
+- `entrypoint.sh` — read `config.json`, generate sysdef files + supervisord configs, create per-instance var dirs
 - `ws-proxy/index.js` — multi-instance routing (`/ws/:id`), `/api/instances` endpoint
 - `portal/index.html` — instance picker card section
 - `portal/js/portal.js` — fetch `/api/instances`, render cards, poll player counts
@@ -362,17 +377,13 @@ Extract from `web-client/src/` into a shared package or duplicate:
 ### Phase 2 (Multi-Instance)
 | File | Change |
 |------|--------|
-| `instances.json` (new) | Instance definitions (id, name, port, sysdef) |
-| `sysdef-pickup` (new) | Standard Bronco config |
-| `sysdef-bots` (new) | `PRET=1`, `MIN_NEWBIE_SLOTS=8` |
-| `sysdef-dogfight` (new) | `DOGFIGHT=1`, `CONTESTSIZE=2` |
-| `Dockerfile` | Build multiple sysdef variants, copy instances.json |
-| `supervisord.conf` | Multiple `[program:netrekd-*]` sections |
-| `entrypoint.sh` | Per-instance var dir initialization |
+| `Dockerfile` | Enable all robot compile flags, add `jq` to runtime |
+| `entrypoint.sh` | Read `config.json`, generate sysdef files + supervisord configs per instance |
 | `ws-proxy/index.js` | `/ws/:id` routing, `/api/instances` endpoint |
 | `portal/index.html` | Instance picker cards section |
 | `portal/js/portal.js` | Fetch `/api/instances`, render cards, poll counts |
 | `web-client/src/main.ts` | Read `?server=` URL param for WS target |
+| Deploy repos: `config.json` | Unified server branding + instance definitions with inline sysdef |
 
 ### Phase 3 (TypeScript Bots)
 | File | Change |
@@ -388,21 +399,19 @@ Extract from `web-client/src/` into a shared package or duplicate:
 
 ## Deployment: Fly.io & Railway
 
-Both deploy repos use a thin overlay pattern: `FROM ghcr.io/neonetrek/client-server:main` plus config file COPYs. Deployers control which instances run by editing `instances.json` — the portal dynamically reflects whatever instances are configured.
+Both deploy repos use a thin overlay pattern: `FROM ghcr.io/neonetrek/client-server:main` plus a single `config.json` COPY. Deployers control server branding and which instances run by editing `config.json` — the portal dynamically reflects whatever is configured.
 
 ### How It Works
 
-1. Deployer adds `instances.json` to their deploy repo (defines which game modes to offer)
-2. Deployer optionally adds custom sysdef files (or uses the templates from the base image)
-3. On container start, `entrypoint.sh` reads `instances.json` and generates supervisord configs
-4. The ws-proxy reads `instances.json` and routes `/ws/<id>` to the right port
-5. The portal fetches `/api/instances` and renders cards for each running instance
+1. Deployer adds `config.json` to their deploy repo (defines branding + game modes)
+2. On container start, `entrypoint.sh` reads `config.json`, generates sysdef files from inline settings, and generates supervisord configs
+3. The ws-proxy reads `config.json` and routes `/ws/<id>` to the right port
+4. The portal fetches `/api/instances` and renders cards for each running instance
 
 The base image ships with:
 - All robot compile flags enabled (`-DPRETSERVER`, `-DDOGFIGHT`, etc.)
-- Template sysdef files for each game mode (`sysdef-pickup`, `sysdef-bots`, `sysdef-dogfight`)
 - The multi-instance-aware ws-proxy and portal
-- A default single-instance `instances.json` (backward compatible)
+- A default `config.json` with a single pickup instance (backward compatible)
 
 ### Memory Budget
 
@@ -420,25 +429,16 @@ Each netrekd instance uses **~200 MB** of memory. Deployers choose how many inst
 
 ```
 deploy-fly/
-  Dockerfile        → FROM base + COPY config.js, instances.json, sysdef-*
+  Dockerfile        → FROM base + COPY config.json
   fly.toml          → App name, region, memory, volume, ports
-  config.js         → Portal branding (server name, tagline, admin)
-  instances.json    → Which game modes to run (deployer edits this)
-  sysdef-bots       → (optional) Custom sysdef overriding the base template
+  config.json       → Server branding + instance definitions (single file)
 ```
 
 **Dockerfile:**
 ```dockerfile
 FROM ghcr.io/neonetrek/client-server:main
 
-# Portal branding
-COPY config.js /opt/portal/config.js
-
-# Instance configuration — the one file that controls what runs
-COPY instances.json /opt/instances.json
-
-# Optional: override base sysdef templates with custom ones
-# COPY sysdef-bots /opt/netrek/etc/sysdef-bots
+COPY config.json /opt/config.json
 ```
 
 **fly.toml:**
@@ -479,7 +479,7 @@ primary_region = "iad"
 
 Additional C server instances (2593, 2594) are internal-only — browsers reach them through the ws-proxy on port 3000. Native Netrek clients can only reach the first instance on 2592 unless the operator adds more `[[services]]` blocks.
 
-**Scaling up**: To add a second instance, the deployer edits `instances.json` and bumps the Fly machine to `shared-cpu-2x`:
+**Scaling up**: To add a second instance, the deployer adds an entry to the `instances` array in `config.json` and bumps the Fly machine to `shared-cpu-2x`:
 ```bash
 fly scale vm shared-cpu-2x
 fly deploy
@@ -489,17 +489,15 @@ fly deploy
 
 ```
 deploy-railway/
-  Dockerfile        → FROM base + COPY config.js, instances.json
-  config.js         → Portal branding
-  instances.json    → Which game modes to run
+  Dockerfile        → FROM base + COPY config.json
+  config.json       → Server branding + instance definitions (single file)
 ```
 
 **Dockerfile:**
 ```dockerfile
 FROM ghcr.io/neonetrek/client-server:main
 
-COPY config.js /opt/portal/config.js
-COPY instances.json /opt/instances.json
+COPY config.json /opt/config.json
 ```
 
 **Railway settings:**
@@ -511,81 +509,114 @@ Railway's single-service model works well since all instances share one containe
 
 ### Backward Compatibility
 
-Deployers who don't add `instances.json` get the same single-instance behavior as today:
+Deployers who don't add `config.json` get the same single-instance behavior as today:
 - The ws-proxy falls back to `NETREK_HOST:NETREK_PORT` (env vars)
 - The portal shows the single-server hero (no instance picker)
 - `/ws` connects to the default server
 
-Deployers who add `instances.json` with one entry get a single game mode with no picker. Multiple entries activate the instance picker cards on the portal.
+Deployers who add `config.json` with one instance get a single game mode with no picker. Multiple instances activate the instance picker cards on the portal.
 
 ### Example Configurations
 
 **Single instance, bots only (beginner server):**
 ```json
-[
-  {
-    "id": "practice",
+{
+  "server": {
     "name": "Practice Server",
-    "description": "Play against bots, learn the game",
-    "port": 2592,
-    "sysdef": "sysdef-bots",
-    "features": ["bots", "practice", "beginner-friendly"]
-  }
-]
+    "tagline": "Learn to play Netrek",
+    "location": "US East",
+    "admin": "YourName",
+    "contact": "you@example.com",
+    "motd": "Welcome, cadet!",
+    "rules": ["Have fun!", "Ask questions in chat"]
+  },
+  "instances": [
+    {
+      "id": "practice",
+      "name": "Practice with Bots",
+      "description": "Play against bots, learn the game",
+      "port": 2592,
+      "features": ["bots", "practice", "beginner-friendly"],
+      "sysdef": { "PRET": 1, "PRET_GUEST": 1, "FPS": 50 }
+    }
+  ]
+}
 ```
 Needs ~200 MB. Portal shows one "Play Now" button, no picker.
 
 **Two instances, pickup + bots:**
 ```json
-[
-  {
-    "id": "pickup",
-    "name": "Pickup Game",
-    "description": "Standard Bronco, all welcome",
-    "port": 2592,
-    "sysdef": "sysdef-pickup",
-    "features": ["bronco", "16-player"]
+{
+  "server": {
+    "name": "My NeoNetrek Server",
+    "tagline": "A community Netrek server",
+    "location": "US East",
+    "admin": "YourName",
+    "contact": "you@example.com",
+    "motd": "Welcome aboard, pilot!",
+    "rules": ["Be respectful", "Team play encouraged", "Have fun!"]
   },
-  {
-    "id": "bots",
-    "name": "Practice with Bots",
-    "description": "4v4 with robot opponents",
-    "port": 2593,
-    "sysdef": "sysdef-bots",
-    "features": ["bots", "practice"]
-  }
-]
+  "instances": [
+    {
+      "id": "pickup",
+      "name": "Standard Pickup",
+      "description": "Classic Bronco team play — no bots",
+      "port": 2592,
+      "features": ["bronco", "pickup"],
+      "sysdef": { "PRET": 0, "NEWBIE": 0, "FPS": 50 }
+    },
+    {
+      "id": "bots",
+      "name": "Practice with Bots",
+      "description": "4v4 with robot opponents",
+      "port": 2593,
+      "features": ["bots", "practice"],
+      "sysdef": { "PRET": 1, "PRET_GUEST": 1, "FPS": 50 }
+    }
+  ]
+}
 ```
 Needs ~400 MB. Portal shows two cards with player counts and separate "Play" buttons.
 
 **Three instances, full experience:**
 ```json
-[
-  {
-    "id": "pickup",
-    "name": "Pickup Game",
-    "description": "Standard Bronco, all welcome",
-    "port": 2592,
-    "sysdef": "sysdef-pickup",
-    "features": ["bronco", "16-player"]
+{
+  "server": {
+    "name": "NeoNetrek Central",
+    "tagline": "Every game mode, one server",
+    "location": "US East",
+    "admin": "YourName",
+    "contact": "you@example.com",
+    "motd": "Welcome aboard!",
+    "rules": ["Be respectful", "Team play encouraged", "Have fun!"]
   },
-  {
-    "id": "bots",
-    "name": "Practice with Bots",
-    "description": "4v4 with robot opponents",
-    "port": 2593,
-    "sysdef": "sysdef-bots",
-    "features": ["bots", "practice"]
-  },
-  {
-    "id": "dogfight",
-    "name": "Dogfight Arena",
-    "description": "1v1 and small team dogfighting",
-    "port": 2594,
-    "sysdef": "sysdef-dogfight",
-    "features": ["dogfight", "fast"]
-  }
-]
+  "instances": [
+    {
+      "id": "pickup",
+      "name": "Standard Pickup",
+      "description": "Classic Bronco team play",
+      "port": 2592,
+      "features": ["bronco", "pickup"],
+      "sysdef": { "PRET": 0, "NEWBIE": 0, "FPS": 50 }
+    },
+    {
+      "id": "bots",
+      "name": "Practice with Bots",
+      "description": "4v4 with robot opponents",
+      "port": 2593,
+      "features": ["bots", "practice"],
+      "sysdef": { "PRET": 1, "PRET_GUEST": 1, "FPS": 50 }
+    },
+    {
+      "id": "dogfight",
+      "name": "Dogfight Arena",
+      "description": "1v1 and small team dogfighting",
+      "port": 2594,
+      "features": ["dogfight", "fast"],
+      "sysdef": { "DOGFIGHT": 1, "CONTESTSIZE": 2, "FPS": 50 }
+    }
+  ]
+}
 ```
 Needs ~600 MB. Portal shows three cards.
 
