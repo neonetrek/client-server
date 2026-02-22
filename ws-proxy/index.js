@@ -24,24 +24,24 @@ const NETREK_PORT = parseInt(process.env.NETREK_PORT || '2592', 10);
 const WS_PORT = parseInt(process.env.WS_PORT || process.env.PORT || '3000', 10);
 const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '..', 'web-client', 'dist');
 const PORTAL_DIR = process.env.PORTAL_DIR || path.join(__dirname, '..', 'portal');
-const INSTANCES_FILE = process.env.NETREK_INSTANCES || '/opt/instances.json';
+const CONFIG_FILE = process.env.NEONETREK_CONFIG || '/opt/config.json';
 
-// ---- Load instances configuration ----
+// ---- Load instances configuration from config.json ----
 let instances = [];
 const instanceMap = new Map(); // id → { port, ... }
 // Track per-instance connection counts
 const instanceConnections = new Map(); // id → Set<ws>
 
 try {
-  const raw = fs.readFileSync(INSTANCES_FILE, 'utf8');
-  instances = JSON.parse(raw);
+  const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+  instances = config.instances || [];
   for (const inst of instances) {
     instanceMap.set(inst.id, inst);
     instanceConnections.set(inst.id, new Set());
   }
-  console.log(`[proxy] Loaded ${instances.length} instance(s) from ${INSTANCES_FILE}`);
+  console.log(`[proxy] Loaded ${instances.length} instance(s) from ${CONFIG_FILE}`);
 } catch (err) {
-  console.log(`[proxy] No instances.json found, using single-instance mode (port ${NETREK_PORT})`);
+  console.log(`[proxy] No config.json found, using single-instance mode (port ${NETREK_PORT})`);
 }
 
 const app = express();

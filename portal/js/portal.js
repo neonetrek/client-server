@@ -75,24 +75,21 @@
   }
 
   // ---------- Config ----------
-  function applyConfig() {
-    var cfg = window.NEONETREK_PORTAL;
+  function applyConfig(cfg) {
     if (!cfg) return;
 
-    if (cfg.serverName) {
-      setText('server-name', cfg.serverName);
-      document.title = cfg.serverName + ' - NeoNetrek';
+    if (cfg.name) {
+      setText('server-name', cfg.name);
+      document.title = cfg.name + ' - NeoNetrek';
     }
-    if (cfg.serverTagline) setText('server-tagline', cfg.serverTagline);
-    if (cfg.serverHost) setText('cfg-host', cfg.serverHost);
-    if (cfg.wsProxy) setText('cfg-ws', cfg.wsProxy);
-    if (cfg.serverLocation) setText('cfg-location', cfg.serverLocation);
-    if (cfg.adminName) setText('cfg-admin', cfg.adminName);
-    if (cfg.adminContact) setText('cfg-contact', cfg.adminContact);
+    if (cfg.tagline) setText('server-tagline', cfg.tagline);
+    if (cfg.location) setText('cfg-location', cfg.location);
+    if (cfg.admin) setText('cfg-admin', cfg.admin);
+    if (cfg.contact) setText('cfg-contact', cfg.contact);
 
     if (cfg.motd) {
       var el = document.getElementById('server-motd');
-      if (el) el.innerHTML = cfg.motd;
+      if (el) el.innerHTML = '<p>' + escapeHtml(cfg.motd) + '</p>';
     }
 
     if (cfg.rules && cfg.rules.length > 0) {
@@ -103,6 +100,15 @@
         }).join('');
       }
     }
+  }
+
+  function fetchConfig() {
+    fetch('/config.json')
+      .then(function (r) { return r.json(); })
+      .then(function (cfg) {
+        applyConfig(cfg.server);
+      })
+      .catch(function () {});
   }
 
   // ---------- Instance Picker ----------
@@ -124,6 +130,19 @@
         setText('hero-status', 'Online');
         var statusEl = document.getElementById('hero-status');
         if (statusEl) statusEl.className = 'stat-value status-online';
+
+        // Also fetch health for uptime
+        fetch('/health').then(function (r) { return r.json(); }).then(function (h) {
+          if (h.uptime) {
+            var hrs = Math.floor(h.uptime / 3600);
+            var min = Math.floor((h.uptime % 3600) / 60);
+            setText('hero-uptime', hrs + 'h ' + min + 'm');
+          }
+        }).catch(function () {});
+
+        // Auto-populate WebSocket URL
+        var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        setText('cfg-ws', proto + '//' + window.location.host + '/ws');
 
         // Show instance picker only if >1 instance
         var section = document.getElementById('instances');
@@ -190,6 +209,10 @@
           var m = Math.floor((data.uptime % 3600) / 60);
           setText('hero-uptime', h + 'h ' + m + 'm');
         }
+
+        // Auto-populate WebSocket URL
+        var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        setText('cfg-ws', proto + '//' + window.location.host + '/ws');
       })
       .catch(function () {
         setText('hero-status', 'Offline');
@@ -303,7 +326,7 @@
 
   // ---------- Init ----------
   function init() {
-    applyConfig();
+    fetchConfig();
     fetchInstances();
     fetchLeaderboard(null);
     // Refresh instances every 30 seconds (includes player counts)

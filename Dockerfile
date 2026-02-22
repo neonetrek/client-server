@@ -61,22 +61,17 @@ COPY --from=client-builder /build/dist /opt/web-client
 # Copy server portal
 COPY portal/ /opt/portal/
 
-# Copy sysdef templates for different game modes
-COPY sysdef /opt/netrek/etc/sysdef
-COPY sysdef-pickup /opt/netrek/etc/sysdef-pickup
-COPY sysdef-bots /opt/netrek/etc/sysdef-bots
-COPY sysdef-dogfight /opt/netrek/etc/sysdef-dogfight
-
-# Copy instance configuration (deployers override this)
-COPY instances.json /opt/instances.json
+# Copy unified config (deployers override this)
+COPY config.json /opt/config.json
 
 # Copy supervisor config and entrypoint
 COPY supervisord.conf /etc/supervisor/conf.d/neonetrek.conf
 COPY entrypoint.sh /opt/entrypoint.sh
 RUN chmod +x /opt/entrypoint.sh
 
-# Netrek server: 2592-2594 (multi-instance), WS proxy + static files: 3000
-EXPOSE 2592 2593 2594 3000
+# WS proxy + static files (browser access)
+# Netrek TCP ports (2592+) are internal only — browsers reach them via ws-proxy
+EXPOSE 3000
 
 ENV NETREK_PORT=2592
 ENV WS_PORT=3000

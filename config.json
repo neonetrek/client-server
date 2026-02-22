@@ -1,0 +1,55 @@
+{
+  "server": {
+    "name": "NeoNetrek London",
+    "tagline": "The original NeoNetrek server. Welcome, pilot.",
+    "location": "London, UK",
+    "admin": "NeoNetrek Team",
+    "contact": "https://github.com/neonetrek",
+    "motd": "Welcome to NeoNetrek! Join a team and fight for galactic domination.",
+    "rules": [
+      "Be respectful to other players",
+      "No automated bots without permission",
+      "Team play is encouraged",
+      "Have fun!"
+    ]
+  },
+  "instances": [
+    {
+      "id": "pickup",
+      "name": "Standard Pickup",
+      "description": "Classic Bronco team play — no bots, real players only",
+      "port": 2592,
+      "features": ["bronco", "pickup"],
+      "sysdef": {
+        "PRET": 0,
+        "NEWBIE": 0,
+        "DOGFIGHT": 0,
+        "FPS": 50,
+        "DEFUPS": 25,
+        "MAXUPS": 50,
+        "RESETGALAXY": 1,
+        "SELF_RESET": 1
+      }
+    },
+    {
+      "id": "bots",
+      "name": "Practice with Bots",
+      "description": "Easy practice bots to learn the game",
+      "port": 2593,
+      "features": ["bots", "practice", "beginner"],
+      "sysdef": {
+        "PRET": 1,
+        "PRET_GUEST": 1,
+        "PRET_PLANETS": 3,
+        "PRET_SAVE_GALAXY": 1,
+        "PRET_GALAXY_LIFETIME": 600,
+        "PRET_SAVE_ARMIES": 1,
+        "FPS": 50,
+        "DEFUPS": 25,
+        "MAXUPS": 50,
+        "RESETGALAXY": 1,
+        "SELF_RESET": 1
+      }
+    }
+  ]
+}
