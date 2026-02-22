@@ -6,7 +6,7 @@
  * CRT glow effect via shadowBlur on all drawn elements.
  */
 
-import { GameState, Player, Torpedo, Phaser, Planet } from './state';
+import { GameState, Player, Torpedo, Phaser, Planet, Message } from './state';
 import {
   GWIDTH, TWIDTH,
   PALIVE, PEXPLODE, PFREE,
@@ -21,6 +21,7 @@ import {
   FED, ROM, KLI, ORI, IND,
   SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, SGALAXY,
   MAXTORP, MAXPLAYER,
+  MVALID, MINDIV, MTEAM, MALL, MGOD,
 } from './constants';
 import { drawShipSVG } from './ships';
 
@@ -376,15 +377,39 @@ export class Renderer {
 
     // Append only new messages
     for (let i = this.lastMessageCount; i < msgs.length; i++) {
+      const msg = msgs[i];
       const div = document.createElement('div');
-      div.className = 'msg-line';
-      div.textContent = msgs[i].text;
+      div.className = 'msg-line ' + this.getMessageClass(msg);
+      div.textContent = msg.text;
       this.messagePanelEl.appendChild(div);
     }
     this.lastMessageCount = msgs.length;
 
     // Auto-scroll to bottom
     this.messagePanelEl.scrollTop = this.messagePanelEl.scrollHeight;
+  }
+
+  /** Classify a message for color coding based on flags and content. */
+  private getMessageClass(msg: Message): string {
+    const text = msg.text;
+
+    // God/admin messages
+    if (msg.flags & MGOD) return 'msg-god';
+
+    // Detect server kill/take announcements by content patterns
+    // These arrive as MALL from the server (from=255 or similar high numbers)
+    if (msg.from >= MAXPLAYER) {
+      if (/was (killed|ghostbusted)|destroyed by|blew up/.test(text)) return 'msg-kill';
+      if (/taken over|captured|bombed|coup/.test(text)) return 'msg-take';
+      return 'msg-system';
+    }
+
+    // Player messages — classify by audience flag
+    if (msg.flags & MINDIV) return 'msg-individual';
+    if (msg.flags & MTEAM) return 'msg-team';
+    if (msg.flags & MALL) return 'msg-all';
+
+    return 'msg-system';
   }
 
   // ============================================================
