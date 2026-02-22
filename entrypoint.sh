@@ -16,5 +16,10 @@ if [ -d "$NETREK_DIR/var/players" ] && [ ! -f "$NETREK_DIR/var/players" ]; then
     rmdir "$NETREK_DIR/var/players" 2>/dev/null || true
 fi
 
+# Remove stale PID files from previous container runs.
+# When /opt/netrek/var is a persistent volume, PID files survive restarts
+# and cause newstartd to think the daemon is already running.
+rm -f "$NETREK_DIR/var/netrekd.pid"
+
 # Start supervisor which manages all processes
 exec /usr/bin/supervisord -n -c /etc/supervisor/conf.d/neonetrek.conf
