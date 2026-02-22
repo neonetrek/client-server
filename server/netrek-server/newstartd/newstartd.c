@@ -42,6 +42,7 @@
 
 int restart;		/* global flag, set by SIGHUP, cleared by read	*/
 int debug = 0;		/* programmers' debugging flag			*/
+static char pidfile[256];	/* runtime path to netrekd.pid		*/
 
 static int get_connection();
 static int read_portfile(char *);
@@ -124,6 +125,22 @@ int main (int argc, char *argv[])
   getpath();
   setpath();
 
+  /* build pidfile path from runtime LOCALSTATEDIR (supports multi-instance) */
+  {
+    const char *lsv = getenv("LOCALSTATEDIR");
+    if (lsv == NULL) lsv = LOCALSTATEDIR;
+    snprintf(pidfile, sizeof(pidfile), "%s/netrekd.pid", lsv);
+  }
+
+  /* also build portfile from runtime SYSCONFDIR if not overridden by argv */
+  {
+    const char *scv = getenv("SYSCONFDIR");
+    if (scv == NULL) scv = SYSCONFDIR;
+    static char portfile_buf[256];
+    snprintf(portfile_buf, sizeof(portfile_buf), "%s/ports", scv);
+    portfile = portfile_buf;
+  }
+
   /* if someone tries to ask for help, give 'em it */
   if (argc == 2 && argv[1][0] == '-') {
     fprintf(stderr, "Usage: %s [start|stop|reload]\n", argv[0]);
@@ -134,7 +151,7 @@ int main (int argc, char *argv[])
   }
 
   /* fetch our previous pid if available */
-  file = fopen (N_NETREKDPID, "r");
+  file = fopen (pidfile, "r");
   if (file != NULL) {
     if (fscanf (file, "%d", &pid) == EOF)
       if (ferror(file))
@@ -143,7 +160,7 @@ int main (int argc, char *argv[])
   } else {
     /* only a total lack of the file is acceptable */
     if (errno != ENOENT) {
-      perror (N_NETREKDPID);
+      perror (pidfile);
       exit(1);
     }
   }
@@ -157,7 +174,7 @@ int main (int argc, char *argv[])
 	  exit (1);
 	}
 	if (kill (pid, SIGINT) == 0) {
-	  remove (N_NETREKDPID);
+	  remove (pidfile);
 	  fprintf (stderr, "netrekd: stopped pid %d\n", pid);
 	  exit (0);
 	}
@@ -165,7 +182,7 @@ int main (int argc, char *argv[])
 	perror ("kill");
 	exit (1);
       }
-      fprintf (stderr, "netrekd: cannot stop, no %s file\n", N_NETREKDPID);
+      fprintf (stderr, "netrekd: cannot stop, no %s file\n", pidfile);
       exit (1);
     }
     if (!strcmp (argv[1], "reload")) {
@@ -182,7 +199,7 @@ int main (int argc, char *argv[])
 	perror ("kill");
 	exit (1);
       }
-      fprintf (stderr, "netrekd: cannot reload, no %s file\n", N_NETREKDPID);
+      fprintf (stderr, "netrekd: cannot reload, no %s file\n", pidfile);
       exit (1);
     }
   }
@@ -202,7 +219,7 @@ int main (int argc, char *argv[])
     }
 
     /* pid was not valid but file was present, so remove it */
-    remove (N_NETREKDPID);
+    remove (pidfile);
   }
 
   /* allow user to specify a port file to use */
@@ -695,7 +712,7 @@ static void putpid(void)
 {
   FILE *file;
 
-  file = fopen(N_NETREKDPID, "w");
+  file = fopen(pidfile, "w");
   if (file == NULL) return;
   fprintf (file, "%d\n", (int) getpid());
   fclose (file);

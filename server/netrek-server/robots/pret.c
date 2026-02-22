@@ -75,6 +75,7 @@ static char    *names[NUMNAMES] =
 #endif
 
 static  char    hostname[64];
+static  char    port[16];
 
 int target;  /* Terminator's target 7/27/91 TC */
 int phrange; /* phaser range 7/31/91 TC */
@@ -145,6 +146,37 @@ main(argc, argv)
     openmem(1);
     strcpy(robot_host,REMOTEHOST);
     readsysdefaults();
+
+    /* read port from ports file so bots connect to the right instance */
+    strncpy(port, PORT, sizeof(port) - 1);
+    port[sizeof(port) - 1] = '\0';
+    {
+        char portspath[256];
+        const char *scv = getenv("SYSCONFDIR");
+        if (scv == NULL) scv = SYSCONFDIR;
+        snprintf(portspath, sizeof(portspath), "%s/ports", scv);
+        FILE *pf = fopen(portspath, "r");
+        if (pf) {
+            char line[128];
+            while (fgets(line, sizeof(line), pf)) {
+                if (line[0] == '#' || line[0] == '\n') continue;
+                /* format: "PORT ntserv ..." — extract the port number */
+                char *p = line;
+                while (*p == ' ' || *p == '\t') p++;
+                if (*p >= '0' && *p <= '9') {
+                    char *end = p;
+                    while (*end >= '0' && *end <= '9') end++;
+                    *end = '\0';
+                    strncpy(port, p, sizeof(port) - 1);
+                    port[sizeof(port) - 1] = '\0';
+                    break;
+                }
+            }
+            fclose(pf);
+        }
+        fprintf(stderr, "pret: using port %s for robot connections\n", port);
+    }
+
     alarm_init();
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
@@ -648,7 +680,7 @@ start_a_robot(char *team)
         execl(OROBOT, "pretbot",
               team,
               "-h", (strlen(robot_host))?robot_host:hostname,
-              "-p", PORT,
+              "-p", port,
               "-n", namearg(),
               "-X", PRE_T_ROBOT_LOGIN,
               "-b", "-O", "-I", "-g",
