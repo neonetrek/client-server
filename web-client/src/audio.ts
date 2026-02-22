@@ -15,7 +15,7 @@ export class AudioEngine {
       this.ctx = new AudioContext();
     }
     if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => { /* autoplay policy - will retry next call */ });
     }
     return this.ctx;
   }
@@ -174,8 +174,8 @@ export class AudioEngine {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(440, ctx.currentTime);
     gain.gain.setValueAtTime(this.volume * 0.2, ctx.currentTime);
-    gain.gain.setValueAtTime(0, ctx.currentTime + 0.1);
-    gain.gain.setValueAtTime(this.volume * 0.2, ctx.currentTime + 0.15);
+    gain.gain.linearRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    gain.gain.linearRampToValueAtTime(this.volume * 0.2, ctx.currentTime + 0.15);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
 
     osc.start(ctx.currentTime);

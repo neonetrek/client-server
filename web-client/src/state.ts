@@ -58,7 +58,7 @@ export interface Phaser {
   x: number;          // target x
   y: number;          // target y
   target: number;
-  fuse: number;       // countdown for display
+  fuseStart: number;  // timestamp when phaser was fired
 }
 
 export interface Planet {
@@ -143,7 +143,7 @@ function createPlasma(num: number): Plasma {
 }
 
 function createPhaser(num: number): Phaser {
-  return { number: num, status: PHFREE, dir: 0, x: 0, y: 0, target: 0, fuse: 0 };
+  return { number: num, status: PHFREE, dir: 0, x: 0, y: 0, target: 0, fuseStart: 0 };
 }
 
 function createPlanet(num: number): Planet {

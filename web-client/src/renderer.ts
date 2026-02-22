@@ -33,6 +33,7 @@ export class Renderer {
   private galCtx: CanvasRenderingContext2D;
   private state: GameState;
   private showGalactic = false;
+  private _canvasSize: number;
 
   constructor(tacCanvas: HTMLCanvasElement, galCanvas: HTMLCanvasElement, state: GameState) {
     this.tacCanvas = tacCanvas;
@@ -42,6 +43,7 @@ export class Renderer {
     // Set canvas sizes with device pixel ratio for crisp rendering
     const dpr = window.devicePixelRatio || 1;
     const size = Math.min(window.innerWidth, window.innerHeight - 120);
+    this._canvasSize = size;
 
     for (const canvas of [tacCanvas, galCanvas]) {
       canvas.width = size * dpr;
@@ -61,7 +63,12 @@ export class Renderer {
   }
 
   get canvasSize(): number {
-    return parseInt(this.tacCanvas.style.width);
+    return this._canvasSize;
+  }
+
+  /** Called on window resize to update cached canvas size */
+  updateSize(size: number) {
+    this._canvasSize = size;
   }
 
   toggleView() {
@@ -108,6 +115,7 @@ export class Renderer {
     const me = s.myNumber >= 0 ? s.players[s.myNumber] : null;
     if (!me || me.status === PFREE) {
       this.renderMOTD(ctx, size);
+      ctx.restore();
       return;
     }
 
@@ -191,10 +199,11 @@ export class Renderer {
       }
     }
 
-    // Draw phasers
+    // Draw phasers (500ms display duration, time-based)
+    const PHASER_DISPLAY_MS = 500;
+    const now = Date.now();
     for (const phaser of s.phasers) {
-      if (phaser.fuse <= 0) continue;
-      phaser.fuse--;
+      if (!phaser.fuseStart || now - phaser.fuseStart > PHASER_DISPLAY_MS) continue;
 
       if (phaser.number < 0 || phaser.number >= MAXPLAYER) continue;
       const owner = s.players[phaser.number];
@@ -625,7 +634,7 @@ export class Renderer {
         { type: CRUISER,    name: 'Cruiser',     short: 'CA', key: 'C', stats: SHIP_STATS[CRUISER] },
         { type: BATTLESHIP, name: 'Battleship',  short: 'BB', key: 'B', stats: SHIP_STATS[BATTLESHIP] },
         { type: ASSAULT,    name: 'Assault',     short: 'AS', key: 'A', stats: SHIP_STATS[ASSAULT] },
-        { type: SGALAXY,    name: 'Galaxy',      short: 'GA', key: 'G', stats: SHIP_STATS[SGALAXY] ?? SHIP_STATS[CRUISER] },
+        { type: SGALAXY,    name: 'Galaxy',      short: 'GA', key: 'G', stats: SHIP_STATS[SGALAXY] },
       ];
 
       ctx.fillStyle = '#888';

@@ -7,13 +7,13 @@
  */
 
 import { SP, SP_BY_CODE, CP, pack, unpack, formatSize } from './protocol';
-import { GameState } from './state';
+import { GameState, createGameState } from './state';
 import { AudioEngine } from './audio';
 import {
   PALIVE, PEXPLODE, PDEAD, POUTFIT, POBSERV, PFREE,
   TMOVE, TEXPLODE, PTMOVE, PTEXPLODE,
   PHHIT, PHHIT2, PHMISS,
-  MAXPLAYER, MAXPLANETS, MAXTORP,
+  MAXPLAYER, MAXPLANETS, MAXTORP, TWIDTH,
 } from './constants';
 
 export class NetrekConnection {
@@ -94,6 +94,7 @@ export class NetrekConnection {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.recvBuffer = new Uint8Array(0);
+      this.resetState();
       this.doConnect();
     }, delay);
   }
@@ -108,6 +109,39 @@ export class NetrekConnection {
       this.sendBye();
       this.ws.close();
       this.ws = null;
+    }
+  }
+
+  private resetState() {
+    const fresh = createGameState();
+    // Reset all entity and session state while preserving the same object reference
+    this.state.myNumber = fresh.myNumber;
+    this.state.myTeam = fresh.myTeam;
+    this.state.teamMask = fresh.teamMask;
+    this.state.phase = fresh.phase;
+    this.state.motdLines = fresh.motdLines;
+    this.state.motdComplete = fresh.motdComplete;
+    this.state.warningText = '';
+    this.state.warningTime = 0;
+    this.state.queuePos = fresh.queuePos;
+    this.state.lastPingTime = 0;
+    this.state.latencyMs = -1;
+    this.state.messages = [];
+    // Reset all entities
+    for (let i = 0; i < this.state.players.length; i++) {
+      Object.assign(this.state.players[i], fresh.players[i]);
+    }
+    for (let i = 0; i < this.state.torps.length; i++) {
+      Object.assign(this.state.torps[i], fresh.torps[i]);
+    }
+    for (let i = 0; i < this.state.plasmas.length; i++) {
+      Object.assign(this.state.plasmas[i], fresh.plasmas[i]);
+    }
+    for (let i = 0; i < this.state.phasers.length; i++) {
+      Object.assign(this.state.phasers[i], fresh.phasers[i]);
+    }
+    for (let i = 0; i < this.state.planets.length; i++) {
+      Object.assign(this.state.planets[i], fresh.planets[i]);
     }
   }
 
@@ -158,6 +192,16 @@ export class NetrekConnection {
   private validPlanet(n: number): boolean { return n >= 0 && n < MAXPLANETS; }
   private validTorp(n: number): boolean { return n >= 0 && n < MAXPLAYER * MAXTORP; }
 
+  /** Check if a position is within tactical range of our player */
+  private inTacRange(x: number, y: number): boolean {
+    const s = this.state;
+    if (s.myNumber < 0) return false;
+    const me = s.players[s.myNumber];
+    const dx = x - me.x;
+    const dy = y - me.y;
+    return Math.abs(dx) < TWIDTH && Math.abs(dy) < TWIDTH;
+  }
+
   private handlePacket(name: string, view: DataView) {
     const s = this.state;
 
@@ -166,6 +210,10 @@ export class NetrekConnection {
         const fields = unpack(SP.MOTD.format, view);
         const line = fields[1] as string;
         s.motdLines.push(line);
+        // Cap at 200 lines to prevent unbounded growth
+        if (s.motdLines.length > 200) {
+          s.motdLines.splice(0, s.motdLines.length - 200);
+        }
         break;
       }
 
@@ -230,7 +278,9 @@ export class NetrekConnection {
         // Track explosion start time for frame-synced animation
         if (status === PEXPLODE && s.players[pnum].status !== PEXPLODE) {
           s.players[pnum].explodeStart = Date.now();
-          this.audio.playShipExplode();
+          if (this.inTacRange(s.players[pnum].x, s.players[pnum].y)) {
+            this.audio.playShipExplode();
+          }
         }
         s.players[pnum].status = status;
 
@@ -282,9 +332,10 @@ export class NetrekConnection {
         const status = f[2] as number;
         const tnum = f[3] as number;
         if (!this.validTorp(tnum)) break;
-        // Play sound on status transition
+        // Play sound on status transition (only for nearby events)
         const oldTorpStatus = s.torps[tnum].status;
-        if (status === TEXPLODE && oldTorpStatus !== TEXPLODE) {
+        const torpNearby = this.inTacRange(s.torps[tnum].x, s.torps[tnum].y);
+        if (status === TEXPLODE && oldTorpStatus !== TEXPLODE && torpNearby) {
           this.audio.playTorpExplode();
         } else if (status === TMOVE && oldTorpStatus !== TMOVE && s.torps[tnum].owner === s.myNumber) {
           this.audio.playTorpFire();
@@ -315,7 +366,7 @@ export class NetrekConnection {
         s.phasers[pnum].x = f[4] as number;
         s.phasers[pnum].y = f[5] as number;
         s.phasers[pnum].target = f[6] as number;
-        s.phasers[pnum].fuse = 10; // display for ~10 frames
+        s.phasers[pnum].fuseStart = Date.now(); // time-based display
         // Play phaser sound for our player
         if (pnum === s.myNumber && (phaserStatus === PHHIT || phaserStatus === PHHIT2 || phaserStatus === PHMISS)) {
           this.audio.playPhaserFire();
@@ -332,7 +383,8 @@ export class NetrekConnection {
         const oldPlasmaStatus = s.plasmas[pnum].status;
         if (status === PTMOVE && oldPlasmaStatus !== PTMOVE && pnum === s.myNumber) {
           this.audio.playPlasmaFire();
-        } else if (status === PTEXPLODE && oldPlasmaStatus !== PTEXPLODE) {
+        } else if (status === PTEXPLODE && oldPlasmaStatus !== PTEXPLODE &&
+                   this.inTacRange(s.plasmas[pnum].x, s.plasmas[pnum].y)) {
           this.audio.playTorpExplode();
         }
         s.plasmas[pnum].status = status;

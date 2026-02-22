@@ -95,9 +95,9 @@ window.addEventListener('resize', () => {
   tacCtx.scale(dpr, dpr);
   galCtx.scale(dpr, dpr);
 
+  renderer.updateSize(size);
   needsRender = true;
 });
 
-// Prevent context menu on canvas
-tacCanvas.addEventListener('contextmenu', e => e.preventDefault());
+// Prevent context menu on galactic canvas (tactical handled in input.ts)
 galCanvas.addEventListener('contextmenu', e => e.preventDefault());
