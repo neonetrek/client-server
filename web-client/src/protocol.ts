@@ -3,7 +3,7 @@
  *
  * Binary packet encoding/decoding for the Netrek protocol.
  * Format strings follow Python struct conventions:
- *   b = int8, B = uint8, h = int16, H = uint16,
+ *   b = int8, B = uint8, c = char (int8), h = int16, H = uint16,
  *   l = int32, L = uint32, I = uint32,
  *   x = pad byte, s = string (preceded by count)
  *   ! = network byte order (big-endian)
@@ -104,6 +104,10 @@ export function parseFormat(fmt: string): { fields: FormatField[]; totalSize: nu
 // Cache parsed formats
 const formatCache = new Map<string, { fields: FormatField[]; totalSize: number }>();
 
+// Reuse encoders to avoid per-call allocation
+const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
+
 function getFormat(fmt: string) {
   let cached = formatCache.get(fmt);
   if (!cached) {
@@ -163,7 +167,7 @@ export function unpack(fmt: string, buffer: DataView, offset: number = 0): (numb
         for (let j = 0; j < field.count!; j++) {
           if (bytes[j] === 0) { end = j; break; }
         }
-        result.push(new TextDecoder().decode(bytes.subarray(0, end)));
+        result.push(textDecoder.decode(bytes.subarray(0, end)));
         pos += field.count!;
         break;
       }
@@ -213,7 +217,7 @@ export function pack(fmt: string, ...values: (number | string)[]): ArrayBuffer {
         break;
       case 'string': {
         const str = (values[valIdx++] as string) ?? '';
-        const encoded = new TextEncoder().encode(str);
+        const encoded = textEncoder.encode(str);
         const len = Math.min(encoded.length, field.count!);
         bytes.set(encoded.subarray(0, len), pos);
         // Rest is already zero-filled

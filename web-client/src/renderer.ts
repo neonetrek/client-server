@@ -25,6 +25,13 @@ const GAL_SIZE = 500;  // Galactic canvas logical size
 
 // How many galactic units fit in the tactical view
 const TAC_RANGE = TWIDTH; // 20000
+const TWO_PI = Math.PI * 2;
+
+// Pre-computed translucent team colors for planet fill (avoids string concat per frame)
+const TEAM_COLORS_ALPHA: Record<number, string> = {};
+for (const [team, color] of Object.entries(TEAM_COLORS)) {
+  TEAM_COLORS_ALPHA[Number(team)] = color + '33';
+}
 
 export class Renderer {
   private tacCanvas: HTMLCanvasElement;
@@ -122,31 +129,30 @@ export class Renderer {
     const cx = me.x;
     const cy = me.y;
 
-    // Draw grid lines (every 5000 galactic units)
+    // Draw grid lines (every 5000 galactic units) - batched into single path
     ctx.strokeStyle = '#111';
     ctx.lineWidth = 1;
     const gridSpacing = 5000;
     const scale = size / TAC_RANGE;
+    ctx.beginPath();
     for (let gx = 0; gx <= GWIDTH; gx += gridSpacing) {
       const sx = (gx - cx + TAC_RANGE / 2) * scale;
       if (sx >= 0 && sx <= size) {
-        ctx.beginPath();
         ctx.moveTo(sx, 0);
         ctx.lineTo(sx, size);
-        ctx.stroke();
       }
     }
     for (let gy = 0; gy <= GWIDTH; gy += gridSpacing) {
       const sy = (gy - cy + TAC_RANGE / 2) * scale;
       if (sy >= 0 && sy <= size) {
-        ctx.beginPath();
         ctx.moveTo(0, sy);
         ctx.lineTo(size, sy);
-        ctx.stroke();
       }
     }
+    ctx.stroke();
 
-    // Draw planets in tactical range
+    // Draw planets in tactical range (set textAlign once for all planets)
+    ctx.textAlign = 'center';
     for (const planet of s.planets) {
       if (!planet.name) continue;
       const sx = (planet.x - cx + TAC_RANGE / 2) * scale;
@@ -154,29 +160,49 @@ export class Renderer {
       if (sx < -30 || sx > size + 30 || sy < -30 || sy > size + 30) continue;
       this.drawTacPlanet(ctx, planet, sx, sy);
     }
+    ctx.textAlign = 'left';
 
-    // Draw torpedoes
+    // Draw torpedoes - batched by color to minimize state changes
+    // Group visible torps by color
+    const torpsByColor = new Map<string, {sx: number, sy: number}[]>();
+    const torpExplodes: {sx: number, sy: number}[] = [];
     for (const torp of s.torps) {
       if (torp.status === TMOVE) {
         const sx = (torp.x - cx + TAC_RANGE / 2) * scale;
         const sy = (torp.y - cy + TAC_RANGE / 2) * scale;
         if (sx < -5 || sx > size + 5 || sy < -5 || sy > size + 5) continue;
-
         const owner = torp.owner >= 0 && torp.owner < MAXPLAYER ? s.players[torp.owner] : null;
-        ctx.fillStyle = owner && owner.number === s.myNumber
+        const color = owner && owner.number === s.myNumber
           ? '#fff'
           : (TEAM_COLORS[owner?.team ?? IND] ?? '#888');
-        ctx.beginPath();
-        ctx.arc(sx, sy, 2, 0, Math.PI * 2);
-        ctx.fill();
+        let batch = torpsByColor.get(color);
+        if (!batch) { batch = []; torpsByColor.set(color, batch); }
+        batch.push({sx, sy});
       } else if (torp.status === TEXPLODE) {
         const sx = (torp.x - cx + TAC_RANGE / 2) * scale;
         const sy = (torp.y - cy + TAC_RANGE / 2) * scale;
-        ctx.fillStyle = '#ff8800';
-        ctx.beginPath();
-        ctx.arc(sx, sy, 5, 0, Math.PI * 2);
-        ctx.fill();
+        torpExplodes.push({sx, sy});
       }
+    }
+    // Draw each color batch as a single path
+    for (const [color, positions] of torpsByColor) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      for (const p of positions) {
+        ctx.moveTo(p.sx + 2, p.sy);
+        ctx.arc(p.sx, p.sy, 2, 0, TWO_PI);
+      }
+      ctx.fill();
+    }
+    // Draw torp explosions in one batch
+    if (torpExplodes.length > 0) {
+      ctx.fillStyle = '#ff8800';
+      ctx.beginPath();
+      for (const p of torpExplodes) {
+        ctx.moveTo(p.sx + 5, p.sy);
+        ctx.arc(p.sx, p.sy, 5, 0, TWO_PI);
+      }
+      ctx.fill();
     }
 
     // Draw plasmas
@@ -187,14 +213,14 @@ export class Renderer {
         if (sx < -10 || sx > size + 10 || sy < -10 || sy > size + 10) continue;
         ctx.fillStyle = '#ff00ff';
         ctx.beginPath();
-        ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+        ctx.arc(sx, sy, 4, 0, TWO_PI);
         ctx.fill();
       } else if (plasma.status === PTEXPLODE) {
         const sx = (plasma.x - cx + TAC_RANGE / 2) * scale;
         const sy = (plasma.y - cy + TAC_RANGE / 2) * scale;
         ctx.fillStyle = '#ff44ff';
         ctx.beginPath();
-        ctx.arc(sx, sy, 8, 0, Math.PI * 2);
+        ctx.arc(sx, sy, 8, 0, TWO_PI);
         ctx.fill();
       }
     }
@@ -218,7 +244,7 @@ export class Renderer {
         sy2 = (phaser.y - cy + TAC_RANGE / 2) * scale;
       } else {
         // Miss - draw in direction
-        const angle = (phaser.dir / 256) * Math.PI * 2 - Math.PI / 2;
+        const angle = (phaser.dir / 256) * TWO_PI - Math.PI / 2;
         sx2 = sx1 + Math.cos(angle) * 200;
         sy2 = sy1 + Math.sin(angle) * 200;
       }
@@ -232,7 +258,8 @@ export class Renderer {
       ctx.lineWidth = 1;
     }
 
-    // Draw ships
+    // Draw ships (set textAlign center for labels)
+    ctx.textAlign = 'center';
     for (const player of s.players) {
       if (player.status !== PALIVE && player.status !== PEXPLODE) continue;
       if (player.flags & PFCLOAK && player.number !== s.myNumber) continue;
@@ -248,6 +275,7 @@ export class Renderer {
 
       this.drawTacShip(ctx, player, sx, sy);
     }
+    ctx.textAlign = 'left';
 
     // Draw HUD
     this.renderHUD(ctx, size, me);
@@ -262,17 +290,19 @@ export class Renderer {
       ctx.font = '11px monospace';
     }
 
-    // Draw messages (last 3)
-    const recentMsgs = s.messages.slice(-3);
+    // Draw messages (last 3, no array allocation)
     ctx.font = '11px monospace';
-    for (let i = 0; i < recentMsgs.length; i++) {
-      const msg = recentMsgs[i];
-      const age = Date.now() - msg.time;
+    const msgStart = Math.max(0, s.messages.length - 3);
+    for (let i = msgStart; i < s.messages.length; i++) {
+      const msg = s.messages[i];
+      const age = now - msg.time;
       if (age > 10000) continue;
       const alpha = Math.max(0, 1 - age / 10000);
-      ctx.fillStyle = `rgba(0, 255, 0, ${alpha})`;
-      ctx.fillText(msg.text, 8, size - 40 + i * 14);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#0f0';
+      ctx.fillText(msg.text, 8, size - 40 + (i - msgStart) * 14);
     }
+    ctx.globalAlpha = 1;
 
     ctx.restore();
   }
@@ -280,14 +310,14 @@ export class Renderer {
   private drawTacShip(ctx: CanvasRenderingContext2D, player: Player, sx: number, sy: number) {
     const isMe = player.number === this.state.myNumber;
     const color = isMe ? '#fff' : (TEAM_COLORS[player.team] ?? '#888');
-    const angle = (player.dir / 256) * Math.PI * 2 - Math.PI / 2;
+    const angle = (player.dir / 256) * TWO_PI - Math.PI / 2;
 
     // Shield circle
     if (player.flags & PFSHIELD) {
       ctx.strokeStyle = color;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(sx, sy, 14, 0, Math.PI * 2);
+      ctx.arc(sx, sy, 14, 0, TWO_PI);
       ctx.stroke();
     }
 
@@ -307,18 +337,14 @@ export class Renderer {
     ctx.closePath();
     ctx.fill();
 
-    // Label: team letter + player number
+    // Label: team letter + player number (textAlign already 'center' from caller)
     const teamLetter = TEAM_LETTERS[player.team] ?? '?';
     const label = `${teamLetter}${player.number}`;
-    ctx.fillStyle = color;
-    ctx.textAlign = 'center';
     ctx.fillText(label, sx, sy + 24);
 
     // Ship type
-    const shipType = SHIP_SHORT[player.shipType] ?? '??';
     ctx.fillStyle = '#888';
-    ctx.fillText(shipType, sx, sy + 34);
-    ctx.textAlign = 'left';
+    ctx.fillText(SHIP_SHORT[player.shipType] ?? '??', sx, sy + 34);
   }
 
   private drawTacPlanet(ctx: CanvasRenderingContext2D, planet: Planet, sx: number, sy: number) {
@@ -329,11 +355,11 @@ export class Renderer {
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+    ctx.arc(sx, sy, radius, 0, TWO_PI);
     ctx.stroke();
 
-    // Fill slightly
-    ctx.fillStyle = color + '33';
+    // Fill slightly (use pre-computed alpha color)
+    ctx.fillStyle = TEAM_COLORS_ALPHA[planet.owner] ?? '#88888833';
     ctx.fill();
 
     // Home planet indicator
@@ -341,7 +367,7 @@ export class Renderer {
       ctx.lineWidth = 1;
       ctx.strokeStyle = '#fff';
       ctx.beginPath();
-      ctx.arc(sx, sy, radius + 3, 0, Math.PI * 2);
+      ctx.arc(sx, sy, radius + 3, 0, TWO_PI);
       ctx.stroke();
     }
 
@@ -351,9 +377,8 @@ export class Renderer {
     if (planet.flags & PLFUEL) indicators += 'F';
     if (planet.flags & PLAGRI) indicators += 'A';
 
-    // Planet name
+    // Planet name (textAlign already 'center' from caller)
     ctx.fillStyle = color;
-    ctx.textAlign = 'center';
     ctx.fillText(planet.name.substring(0, 3), sx, sy + radius + 12);
 
     // Army count
@@ -366,18 +391,18 @@ export class Renderer {
       ctx.fillStyle = '#666';
       ctx.fillText(indicators, sx, sy + radius + 22);
     }
-    ctx.textAlign = 'left';
   }
 
   private drawExplosion(ctx: CanvasRenderingContext2D, sx: number, sy: number, startTime: number) {
+    if (!startTime) return; // no valid start time, skip
     const EXPLOSION_DURATION = 500; // ms
-    const elapsed = Date.now() - (startTime || Date.now());
+    const elapsed = Date.now() - startTime;
     const t = Math.min(1, Math.max(0, elapsed / EXPLOSION_DURATION));
     const radius = 10 + t * 20;
     const alpha = 1 - t;
     ctx.fillStyle = `rgba(255, ${Math.floor(128 * (1 - t))}, 0, ${alpha})`;
     ctx.beginPath();
-    ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+    ctx.arc(sx, sy, radius, 0, TWO_PI);
     ctx.fill();
 
     // Secondary ring for visual impact
@@ -385,7 +410,7 @@ export class Renderer {
       ctx.strokeStyle = `rgba(255, 255, 0, ${0.5 * (1 - t / 0.7)})`;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(sx, sy, radius + 5, 0, Math.PI * 2);
+      ctx.arc(sx, sy, radius + 5, 0, TWO_PI);
       ctx.stroke();
     }
   }
@@ -520,6 +545,7 @@ export class Renderer {
     ctx.font = '10px monospace';
 
     // Draw planets
+    ctx.textAlign = 'center';
     for (const planet of s.planets) {
       if (!planet.name) continue;
       const sx = planet.x * scale;
@@ -528,18 +554,16 @@ export class Renderer {
 
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+      ctx.arc(sx, sy, 3, 0, TWO_PI);
       ctx.fill();
 
-      ctx.fillStyle = color;
-      ctx.textAlign = 'center';
       ctx.fillText(planet.name.substring(0, 3), sx, sy + 12);
-      ctx.textAlign = 'left';
     }
 
     // Draw players
     for (const player of s.players) {
       if (player.status !== PALIVE) continue;
+      if (player.flags & PFCLOAK && player.number !== s.myNumber) continue;
 
       const sx = player.x * scale;
       const sy = player.y * scale;
@@ -547,10 +571,9 @@ export class Renderer {
       const teamLetter = TEAM_LETTERS[player.team] ?? '?';
 
       ctx.fillStyle = color;
-      ctx.textAlign = 'center';
       ctx.fillText(`${teamLetter}${player.number}`, sx, sy + 4);
-      ctx.textAlign = 'left';
     }
+    ctx.textAlign = 'left';
 
     // Draw my tactical range box
     if (s.myNumber >= 0 && s.players[s.myNumber].status === PALIVE) {

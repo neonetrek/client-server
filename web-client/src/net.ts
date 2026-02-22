@@ -21,6 +21,7 @@ export class NetrekConnection {
   private recvBuffer: Uint8Array = new Uint8Array(0);
   private state: GameState;
   private onStateUpdate: () => void;
+  private onReconnect: (() => void) | null = null;
   private wsUrl: string = '';
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -30,6 +31,11 @@ export class NetrekConnection {
   constructor(state: GameState, onStateUpdate: () => void) {
     this.state = state;
     this.onStateUpdate = onStateUpdate;
+  }
+
+  /** Register a callback to be called on reconnect (e.g., to reset input state) */
+  setReconnectCallback(cb: () => void) {
+    this.onReconnect = cb;
   }
 
   connect(url: string) {
@@ -95,6 +101,7 @@ export class NetrekConnection {
       this.reconnectTimer = null;
       this.recvBuffer = new Uint8Array(0);
       this.resetState();
+      if (this.onReconnect) this.onReconnect();
       this.doConnect();
     }, delay);
   }
@@ -127,6 +134,8 @@ export class NetrekConnection {
     this.state.lastPingTime = 0;
     this.state.latencyMs = -1;
     this.state.messages = [];
+    this.state.armies = [0, 0, 0, 0];
+    this.state.planets_owned = [0, 0, 0, 0];
     // Reset all entities
     for (let i = 0; i < this.state.players.length; i++) {
       Object.assign(this.state.players[i], fresh.players[i]);
@@ -146,6 +155,11 @@ export class NetrekConnection {
   }
 
   private appendData(data: Uint8Array) {
+    // Fast path: if recvBuffer is empty (common case), use data directly
+    if (this.recvBuffer.length === 0) {
+      this.recvBuffer = data;
+      return;
+    }
     const combined = new Uint8Array(this.recvBuffer.length + data.length);
     combined.set(this.recvBuffer);
     combined.set(data, this.recvBuffer.length);
@@ -160,10 +174,10 @@ export class NetrekConnection {
       const def = SP_BY_CODE.get(packetType);
 
       if (!def) {
-        // Unknown packet - try to skip by scanning for next known packet type.
-        // Netrek packets are always 4-byte aligned, so advance by 4.
+        // Unknown packet - skip 4 bytes (Netrek packets are 4-byte aligned).
+        // Clamp so we don't overshoot past buffer end and discard valid trailing bytes.
         console.warn(`[net] Unknown packet type: ${packetType} at offset ${offset}, skipping 4 bytes`);
-        offset += 4;
+        offset = Math.min(offset + 4, this.recvBuffer.length);
         continue;
       }
 
@@ -366,7 +380,12 @@ export class NetrekConnection {
         s.phasers[pnum].x = f[4] as number;
         s.phasers[pnum].y = f[5] as number;
         s.phasers[pnum].target = f[6] as number;
-        s.phasers[pnum].fuseStart = Date.now(); // time-based display
+        // Only set fuseStart for active phaser states; clear for PHFREE
+        if (phaserStatus === PHHIT || phaserStatus === PHHIT2 || phaserStatus === PHMISS) {
+          s.phasers[pnum].fuseStart = Date.now();
+        } else {
+          s.phasers[pnum].fuseStart = 0;
+        }
         // Play phaser sound for our player
         if (pnum === s.myNumber && (phaserStatus === PHHIT || phaserStatus === PHHIT2 || phaserStatus === PHMISS)) {
           this.audio.playPhaserFire();

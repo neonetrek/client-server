@@ -9,6 +9,8 @@ export class AudioEngine {
   private ctx: AudioContext | null = null;
   private muted = false;
   private volume = 0.3;
+  private torpNoiseBuffer: AudioBuffer | null = null;
+  private shipNoiseBuffer: AudioBuffer | null = null;
 
   private ensureContext() {
     if (!this.ctx) {
@@ -18,6 +20,32 @@ export class AudioEngine {
       this.ctx.resume().catch(() => { /* autoplay policy - will retry next call */ });
     }
     return this.ctx;
+  }
+
+  /** Get or create a cached noise buffer for torpedo explosions */
+  private getTorpNoiseBuffer(ctx: AudioContext): AudioBuffer {
+    if (!this.torpNoiseBuffer || this.torpNoiseBuffer.sampleRate !== ctx.sampleRate) {
+      const bufferSize = Math.floor(ctx.sampleRate * 0.15);
+      this.torpNoiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = this.torpNoiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+      }
+    }
+    return this.torpNoiseBuffer;
+  }
+
+  /** Get or create a cached noise buffer for ship explosions */
+  private getShipNoiseBuffer(ctx: AudioContext): AudioBuffer {
+    if (!this.shipNoiseBuffer || this.shipNoiseBuffer.sampleRate !== ctx.sampleRate) {
+      const bufferSize = Math.floor(ctx.sampleRate * 0.3);
+      this.shipNoiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = this.shipNoiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+      }
+    }
+    return this.shipNoiseBuffer;
   }
 
   toggleMute(): boolean {
@@ -72,15 +100,9 @@ export class AudioEngine {
     if (this.muted) return;
     const ctx = this.ensureContext();
 
-    // Noise burst
-    const bufferSize = ctx.sampleRate * 0.15;
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
-    }
+    // Reuse pre-generated noise buffer
     const noise = ctx.createBufferSource();
-    noise.buffer = buffer;
+    noise.buffer = this.getTorpNoiseBuffer(ctx);
 
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
@@ -117,15 +139,9 @@ export class AudioEngine {
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.5);
 
-    // White noise burst
-    const bufferSize = ctx.sampleRate * 0.3;
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
-    }
+    // Reuse pre-generated noise buffer
     const noise = ctx.createBufferSource();
-    noise.buffer = buffer;
+    noise.buffer = this.getShipNoiseBuffer(ctx);
 
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';

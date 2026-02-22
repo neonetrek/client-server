@@ -36,6 +36,9 @@ const net = new NetrekConnection(state, onStateUpdate);
 const input = new InputHandler(net, state, renderer);
 input.setup(tacCanvas);
 
+// Reset input state on reconnect so login flow works again
+net.setReconnectCallback(() => input.resetLoginState());
+
 // Connect to server via WebSocket proxy
 const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 statusEl.textContent = `Connecting to ${wsUrl}...`;
@@ -56,6 +59,7 @@ setInterval(() => {
   needsRender = true;
 }, REDRAW_RATE);
 
+let lastStatusText = '';
 function updateStatus() {
   const parts: string[] = [];
 
@@ -75,7 +79,11 @@ function updateStatus() {
     parts.push(`Queue: ${state.queuePos}`);
   }
 
-  statusEl.textContent = parts.join(' | ');
+  const text = parts.join(' | ');
+  if (text !== lastStatusText) {
+    statusEl.textContent = text;
+    lastStatusText = text;
+  }
 }
 
 // Handle window resize
@@ -94,6 +102,9 @@ window.addEventListener('resize', () => {
   const galCtx = galCanvas.getContext('2d')!;
   tacCtx.scale(dpr, dpr);
   galCtx.scale(dpr, dpr);
+  // Restore fonts after canvas resize resets context state
+  tacCtx.font = '11px monospace';
+  galCtx.font = '10px monospace';
 
   renderer.updateSize(size);
   needsRender = true;

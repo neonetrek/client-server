@@ -46,6 +46,16 @@ export class InputHandler {
     return `Player ${this.chatTarget}`;
   }
 
+  /** Reset login/chat state (called on reconnect) */
+  resetLoginState() {
+    this.loginState = 'waiting';
+    this.inputBuffer = '';
+    this.userName = '';
+    this.userPassword = '';
+    this.chatMode = false;
+    this.chatBuffer = '';
+  }
+
   setup(canvas: HTMLCanvasElement) {
     document.addEventListener('keydown', (e) => this.onKeyDown(e));
     document.addEventListener('keyup', (e) => this.onKeyUp(e));
@@ -163,7 +173,7 @@ export class InputHandler {
     if (this.state.myTeam) {
       const shipMap: Record<string, number> = {
         's': SCOUT, 'd': DESTROYER, 'c': CRUISER,
-        'b': BATTLESHIP, 'a': ASSAULT, 'o': STARBASE, 'g': SGALAXY,
+        'b': BATTLESHIP, 'a': ASSAULT, 'g': SGALAXY,
       };
       const ship = shipMap[e.key.toLowerCase()];
       if (ship !== undefined) {
