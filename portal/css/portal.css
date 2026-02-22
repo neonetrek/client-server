@@ -57,9 +57,9 @@ body {
 .nav-brand { display: flex; align-items: center; gap: 0.5rem; }
 
 .logo-icon {
-  font-size: 1.5rem;
   color: var(--accent-gold);
-  text-shadow: 0 0 10px rgba(255,204,0,0.5);
+  filter: drop-shadow(0 0 6px rgba(255,204,0,0.5));
+  vertical-align: middle;
 }
 
 .logo-text {
