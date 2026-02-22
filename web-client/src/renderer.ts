@@ -249,6 +249,18 @@ export class Renderer {
     this.lagEl = document.createElement('span');
     this.lagEl.className = 'hud-lag';
     this.statusBarEl.appendChild(this.lagEl);
+
+    // Spacer to push help hint right
+    const spacer = document.createElement('span');
+    spacer.style.flex = '1';
+    this.statusBarEl.appendChild(spacer);
+
+    // Persistent help hint
+    const helpHint = document.createElement('span');
+    helpHint.style.color = '#555';
+    helpHint.style.fontSize = '10px';
+    helpHint.textContent = '? = help';
+    this.statusBarEl.appendChild(helpHint);
   }
 
   private updateStatusBar() {
@@ -1169,8 +1181,8 @@ export class Renderer {
     ctx.font = '11px monospace';
 
     const chatKeys = [
-      [';', 'Chat to all'],
-      ['Enter', 'Chat to team'],
+      [';', 'Chat to ALL'],
+      ['Enter', 'Chat to TEAM'],
       ['Esc', 'Cancel chat'],
     ];
     for (const [key, desc] of chatKeys) {
@@ -1180,6 +1192,24 @@ export class Renderer {
       ctx.fillText(desc, col2x + 70, y);
       y += lineH;
     }
+
+    // Message color legend
+    y += 4;
+    ctx.font = '10px monospace';
+    const colorLegend: [string, string][] = [
+      ['#0f0', 'ALL chat'],
+      ['#ff0', 'TEAM chat'],
+      ['#0cf', 'Private msg'],
+      ['#f80', 'Kills'],
+      ['#f0f', 'Planet ops'],
+      ['#888', 'System'],
+    ];
+    for (const [color, label] of colorLegend) {
+      ctx.fillStyle = color;
+      ctx.fillText(`■ ${label}`, col2x, y);
+      y += 12;
+    }
+    ctx.font = '11px monospace';
 
     y += 8;
     ctx.fillStyle = '#0cf';
