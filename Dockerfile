@@ -13,9 +13,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY server/netrek-server/ /src
 WORKDIR /src
 
-# Configure and build (serial make - parallel has race on libnetrek.a)
+# Configure and build with robot support flags
+# PRETSERVER: pre-T mode entertainment bots
+# NEWBIESERVER: newbie practice bots
+# BASEPRACTICE: base practice bots
+# Serial make - parallel has race on libnetrek.a
 RUN sh autogen.sh \
-    && ./configure --prefix=/opt/netrek \
+    && CFLAGS="-DPRETSERVER -DNEWBIESERVER -DBASEPRACTICE" \
+       ./configure --prefix=/opt/netrek \
     && make \
     && make install
 
@@ -39,6 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdbm6 libcrypt1 \
     nodejs npm \
     supervisor \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy built netrek server
@@ -55,13 +61,22 @@ COPY --from=client-builder /build/dist /opt/web-client
 # Copy server portal
 COPY portal/ /opt/portal/
 
+# Copy sysdef templates for different game modes
+COPY sysdef /opt/netrek/etc/sysdef
+COPY sysdef-pickup /opt/netrek/etc/sysdef-pickup
+COPY sysdef-bots /opt/netrek/etc/sysdef-bots
+COPY sysdef-dogfight /opt/netrek/etc/sysdef-dogfight
+
+# Copy instance configuration (deployers override this)
+COPY instances.json /opt/instances.json
+
 # Copy supervisor config and entrypoint
 COPY supervisord.conf /etc/supervisor/conf.d/neonetrek.conf
 COPY entrypoint.sh /opt/entrypoint.sh
 RUN chmod +x /opt/entrypoint.sh
 
-# Netrek server: 2592, WS proxy + static files: 3000
-EXPOSE 2592 3000
+# Netrek server: 2592-2594 (multi-instance), WS proxy + static files: 3000
+EXPOSE 2592 2593 2594 3000
 
 ENV NETREK_PORT=2592
 ENV WS_PORT=3000

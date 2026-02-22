@@ -1,0 +1,18 @@
+[
+  {
+    "id": "pickup",
+    "name": "Pickup Game",
+    "description": "Standard Bronco, all welcome",
+    "port": 2592,
+    "sysdef": "sysdef-pickup",
+    "features": ["bronco", "16-player"]
+  },
+  {
+    "id": "bots",
+    "name": "Practice with Bots",
+    "description": "4v4 with easy robot opponents, great for learning",
+    "port": 2593,
+    "sysdef": "sysdef-bots",
+    "features": ["bots", "practice"]
+  }
+]

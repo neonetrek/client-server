@@ -265,6 +265,76 @@ body {
   font-size: 1rem;
 }
 
+/* ---------- Instance Picker ---------- */
+.instances-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.instance-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.instance-card:hover {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 20px rgba(255,204,0,0.1);
+}
+
+.instance-name {
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--text-heading);
+  margin-bottom: 0.4rem;
+}
+
+.instance-desc {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 0.8rem;
+  line-height: 1.5;
+}
+
+.instance-players {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--accent-gold);
+  margin-bottom: 0.8rem;
+}
+
+.instance-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.instance-tag {
+  background: rgba(68,136,255,0.1);
+  border: 1px solid rgba(68,136,255,0.25);
+  color: var(--accent-blue);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 3px;
+}
+
+.instance-actions {
+  margin-top: auto;
+  padding-top: 0.8rem;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+.instance-actions .btn { width: 100%; text-align: center; }
+
 /* ---------- Info Grid ---------- */
 .info-grid {
   display: grid;

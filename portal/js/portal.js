@@ -1,7 +1,7 @@
 /**
  * NeoNetrek Server Portal
  *
- * Handles: starfield, config loading, leaderboard display, live server status.
+ * Handles: starfield, config loading, instance picker, leaderboard display, live server status.
  */
 
 (function () {
@@ -105,7 +105,75 @@
     }
   }
 
-  // ---------- Server Status ----------
+  // ---------- Instance Picker ----------
+  var instancesData = null;
+
+  function fetchInstances() {
+    fetch('/api/instances')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!Array.isArray(data) || data.length === 0) return;
+        instancesData = data;
+
+        // Update hero stats with total player count
+        var totalPlayers = data.reduce(function (sum, inst) {
+          return sum + (inst.connections || 0);
+        }, 0);
+        setText('hero-players', String(totalPlayers));
+        setText('hero-status', 'Online');
+        var statusEl = document.getElementById('hero-status');
+        if (statusEl) statusEl.className = 'stat-value status-online';
+
+        // Show instance picker only if >1 instance
+        var section = document.getElementById('instances');
+        if (section && data.length > 1) {
+          section.style.display = '';
+          renderInstances(data);
+
+          // Update hero "Play Now" to link to first instance
+          var heroBtn = document.querySelector('.hero-buttons .btn-primary');
+          if (heroBtn) {
+            heroBtn.href = '/play/?server=' + data[0].id;
+          }
+        } else if (data.length === 1) {
+          // Single instance — hero "Play Now" links to it
+          var heroBtn = document.querySelector('.hero-buttons .btn-primary');
+          if (heroBtn) {
+            heroBtn.href = '/play/?server=' + data[0].id;
+          }
+        }
+      })
+      .catch(function () {
+        // Fall back to basic health check
+        fetchStatus();
+      });
+  }
+
+  function renderInstances(data) {
+    var grid = document.getElementById('instances-grid');
+    if (!grid) return;
+
+    grid.innerHTML = data.map(function (inst) {
+      var features = (inst.features || []).map(function (f) {
+        return '<span class="instance-tag">' + escapeHtml(f) + '</span>';
+      }).join('');
+
+      var playerCount = inst.connections || 0;
+      var playerText = playerCount === 1 ? '1 player' : playerCount + ' players';
+
+      return '<div class="instance-card">' +
+        '<div class="instance-name">' + escapeHtml(inst.name) + '</div>' +
+        '<div class="instance-desc">' + escapeHtml(inst.description) + '</div>' +
+        '<div class="instance-players">' + playerText + ' online</div>' +
+        '<div class="instance-features">' + features + '</div>' +
+        '<div class="instance-actions">' +
+        '<a href="/play/?server=' + encodeURIComponent(inst.id) + '" class="btn btn-primary btn-small">Play Now</a>' +
+        '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  // ---------- Server Status (fallback for single-instance) ----------
   function fetchStatus() {
     fetch('/health')
       .then(function (r) { return r.json(); })
@@ -198,10 +266,10 @@
   // ---------- Init ----------
   function init() {
     applyConfig();
-    fetchStatus();
+    fetchInstances();
     fetchLeaderboard();
-    // Refresh status every 30 seconds
-    setInterval(fetchStatus, 30000);
+    // Refresh instances every 30 seconds (includes player counts)
+    setInterval(fetchInstances, 30000);
   }
 
   if (document.readyState === 'loading') {

@@ -1,0 +1,25 @@
+#
+# NeoNetrek: Dogfight Arena
+#
+# 1v1 and small team dogfighting with the Mars robot.
+#
+
+ROBOTHOST=127.0.0.1
+IS_ROBOT_BY_HOST=1
+
+# Dogfight mode
+DOGFIGHT=1
+CONTESTSIZE=2
+NUMMATCH=10
+RECREATIONAL_DOGFIGHT_MODE=1
+
+# No other bots
+PRET=0
+NEWBIE=0
+
+# Standard settings
+RESETGALAXY=1
+SELF_RESET=1
+FPS=50
+DEFUPS=25
+MAXUPS=50

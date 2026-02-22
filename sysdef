@@ -1,0 +1,33 @@
+#
+# NeoNetrek Server Configuration (sysdef)
+#
+# This is the default sysdef for the single-instance deployment.
+# It enables pre-T mode entertainment bots so new players have opponents.
+#
+
+# Pre-T mode: maintains 4v4 with robots when not enough humans
+PRET=1
+
+# Robot host (robots connect from localhost)
+ROBOTHOST=127.0.0.1
+IS_ROBOT_BY_HOST=1
+
+# Allow guest logins for easy access
+PRET_GUEST=1
+
+# Pre-T win condition: team must lead by this many planets
+PRET_PLANETS=3
+
+# Save galaxy state during T-mode transitions
+PRET_SAVE_GALAXY=1
+PRET_GALAXY_LIFETIME=600
+PRET_SAVE_ARMIES=1
+
+# Galaxy resets on daemon restart
+RESETGALAXY=1
+SELF_RESET=1
+
+# Standard Bronco settings
+FPS=50
+DEFUPS=25
+MAXUPS=50

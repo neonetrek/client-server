@@ -44,7 +44,12 @@ input.setup(tacCanvas);
 net.setReconnectCallback(() => input.resetLoginState());
 
 // Connect to server via WebSocket proxy
-const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+// Read instance from URL params (e.g. ?server=bots), default to legacy /ws
+const params = new URLSearchParams(window.location.search);
+const instanceId = params.get('server');
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const wsPath = instanceId ? `/ws/${instanceId}` : '/ws';
+const wsUrl = `${protocol}//${window.location.host}${wsPath}`;
 statusEl.textContent = `Connecting to ${wsUrl}...`;
 net.connect(wsUrl);
 

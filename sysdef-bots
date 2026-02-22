@@ -1,0 +1,24 @@
+#
+# NeoNetrek: Practice with Bots
+#
+# Pre-T mode entertainment: maintains 4v4 with robot opponents.
+# Great for learning and solo practice.
+#
+
+ROBOTHOST=127.0.0.1
+IS_ROBOT_BY_HOST=1
+
+# Pre-T mode bots
+PRET=1
+PRET_GUEST=1
+PRET_PLANETS=3
+PRET_SAVE_GALAXY=1
+PRET_GALAXY_LIFETIME=600
+PRET_SAVE_ARMIES=1
+
+# Standard settings
+RESETGALAXY=1
+SELF_RESET=1
+FPS=50
+DEFUPS=25
+MAXUPS=50
