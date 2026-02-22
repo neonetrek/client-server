@@ -175,6 +175,12 @@ export const BADVERSION_BANNED  = 3;
 export const BADVERSION_DOWN    = 4;
 export const BADVERSION_SILENCE = 5;
 
+// Rank names (indexed by rank number from server)
+export const RANK_NAMES = [
+  'Ensign', 'Lieutenant', 'Lt. Cmdr', 'Commander',
+  'Captain', 'Flt. Capt', 'Commodore', 'Rear Adm', 'Admiral',
+];
+
 // Max players
 export const MAXPLAYER = 32;
 export const MAXPLANETS = 40;

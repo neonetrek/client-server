@@ -1,7 +1,9 @@
 /**
  * NeoNetrek Renderer
  *
- * Canvas 2D rendering for tactical and galactic views.
+ * Canvas 2D rendering for tactical and galactic views (always side-by-side),
+ * plus HTML status bar, player list, and message panel.
+ * CRT glow effect via shadowBlur on all drawn elements.
  */
 
 import { GameState, Player, Torpedo, Phaser, Planet } from './state';
@@ -15,22 +17,27 @@ import {
   PFGREEN, PFYELLOW, PFRED,
   PLREPAIR, PLFUEL, PLAGRI, PLHOME,
   TEAM_COLORS, TEAM_LETTERS, SHIP_SHORT, SHIP_STATS,
+  RANK_NAMES,
   FED, ROM, KLI, ORI, IND,
   SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, SGALAXY,
   MAXTORP, MAXPLAYER,
 } from './constants';
-
-const TAC_SIZE = 500;  // Tactical canvas logical size
-const GAL_SIZE = 500;  // Galactic canvas logical size
+import { drawShipSVG } from './ships';
 
 // How many galactic units fit in the tactical view
 const TAC_RANGE = TWIDTH; // 20000
 const TWO_PI = Math.PI * 2;
 
-// Pre-computed translucent team colors for planet fill (avoids string concat per frame)
+// Pre-computed translucent team colors for planet fill
 const TEAM_COLORS_ALPHA: Record<number, string> = {};
 for (const [team, color] of Object.entries(TEAM_COLORS)) {
   TEAM_COLORS_ALPHA[Number(team)] = color + '33';
+}
+
+// Status bar configuration
+interface BarRef {
+  fill: HTMLElement;
+  value: HTMLElement;
 }
 
 export class Renderer {
@@ -39,67 +46,345 @@ export class Renderer {
   private tacCtx: CanvasRenderingContext2D;
   private galCtx: CanvasRenderingContext2D;
   private state: GameState;
-  private showGalactic = false;
   private _canvasSize: number;
+  private _showHelp = false;
 
-  constructor(tacCanvas: HTMLCanvasElement, galCanvas: HTMLCanvasElement, state: GameState) {
+  // HTML panel elements
+  private statusBarEl: HTMLElement;
+  private playerListEl: HTMLElement;
+  private messagePanelEl: HTMLElement;
+
+  // Cached status bar refs
+  private bars: Record<string, BarRef> = {};
+  private speedEl!: HTMLElement;
+  private armiesEl!: HTMLElement;
+  private killsEl!: HTMLElement;
+  private flagsEl!: HTMLElement;
+  private lagEl!: HTMLElement;
+  private alertEl!: HTMLElement;
+
+  // Player list dirty check
+  private lastPlayerHash = '';
+
+  // Message tracking
+  private lastMessageCount = 0;
+
+  constructor(
+    tacCanvas: HTMLCanvasElement,
+    galCanvas: HTMLCanvasElement,
+    state: GameState,
+    statusBar: HTMLElement,
+    playerList: HTMLElement,
+    messagePanel: HTMLElement,
+  ) {
     this.tacCanvas = tacCanvas;
     this.galCanvas = galCanvas;
     this.state = state;
+    this.statusBarEl = statusBar;
+    this.playerListEl = playerList;
+    this.messagePanelEl = messagePanel;
 
-    // Set canvas sizes with device pixel ratio for crisp rendering
-    const dpr = window.devicePixelRatio || 1;
-    const size = Math.min(window.innerWidth, window.innerHeight - 120);
-    this._canvasSize = size;
-
-    for (const canvas of [tacCanvas, galCanvas]) {
-      canvas.width = size * dpr;
-      canvas.height = size * dpr;
-      canvas.style.width = `${size}px`;
-      canvas.style.height = `${size}px`;
-    }
+    this._canvasSize = 300; // will be set by resizeLayout
 
     this.tacCtx = tacCanvas.getContext('2d')!;
     this.galCtx = galCanvas.getContext('2d')!;
 
-    this.tacCtx.scale(dpr, dpr);
-    this.galCtx.scale(dpr, dpr);
-
-    this.tacCtx.font = '11px monospace';
-    this.galCtx.font = '10px monospace';
+    this.initStatusBar();
+    this.initPlayerListHeader();
   }
 
   get canvasSize(): number {
     return this._canvasSize;
   }
 
-  /** Called on window resize to update cached canvas size */
-  updateSize(size: number) {
+  /** Called on window resize to update canvas dimensions */
+  resizeCanvases(size: number) {
     this._canvasSize = size;
+    const dpr = window.devicePixelRatio || 1;
+
+    for (const canvas of [this.tacCanvas, this.galCanvas]) {
+      canvas.width = size * dpr;
+      canvas.height = size * dpr;
+      canvas.style.width = `${size}px`;
+      canvas.style.height = `${size}px`;
+    }
+
+    this.tacCtx = this.tacCanvas.getContext('2d')!;
+    this.galCtx = this.galCanvas.getContext('2d')!;
+    this.tacCtx.scale(dpr, dpr);
+    this.galCtx.scale(dpr, dpr);
+    this.tacCtx.font = '11px monospace';
+    this.galCtx.font = '10px monospace';
   }
 
-  toggleView() {
-    this.showGalactic = !this.showGalactic;
-    this.tacCanvas.style.display = this.showGalactic ? 'none' : 'block';
-    this.galCanvas.style.display = this.showGalactic ? 'block' : 'none';
-  }
-
-  get isGalacticView(): boolean {
-    return this.showGalactic;
+  set helpVisible(v: boolean) {
+    this._showHelp = v;
   }
 
   render() {
     // Show outfit screen during outfit/dead phases
     if (this.state.phase === 'outfit' || this.state.phase === 'dead') {
       this.renderOutfit(this.tacCtx, this.canvasSize, this.state.myTeam);
+      // Clear galactic during outfit
+      const gCtx = this.galCtx;
+      const gSize = this.canvasSize;
+      gCtx.fillStyle = '#000';
+      gCtx.fillRect(0, 0, gSize, gSize);
+
+      if (this._showHelp) this.renderHelp(this.tacCtx, this.canvasSize);
       return;
     }
 
-    if (this.showGalactic) {
-      this.renderGalactic();
-    } else {
-      this.renderTactical();
+    // Always render both views side-by-side
+    this.renderTactical();
+    this.renderGalactic();
+
+    // Update HTML panels
+    this.updateStatusBar();
+    this.updatePlayerList();
+    this.updateMessages();
+
+    if (this._showHelp) this.renderHelp(this.tacCtx, this.canvasSize);
+  }
+
+  // ============================================================
+  // Status Bar (HTML)
+  // ============================================================
+
+  private initStatusBar() {
+    const bars = [
+      { id: 'sh', label: 'SH', color: '#00ccff' },
+      { id: 'hu', label: 'HU', color: '#cc8800' },
+      { id: 'fu', label: 'FU', color: '#00ff00' },
+      { id: 'wt', label: 'WT', color: '#ff4444' },
+      { id: 'et', label: 'ET', color: '#ff8844' },
+    ];
+
+    // Alert background wrapper
+    const alertEl = document.createElement('span');
+    alertEl.className = 'hud-group';
+    alertEl.id = 'hud-alert';
+    alertEl.style.padding = '2px 6px';
+    alertEl.style.borderRadius = '2px';
+    this.alertEl = alertEl;
+
+    for (const bar of bars) {
+      const group = document.createElement('span');
+      group.className = 'hud-group';
+
+      const label = document.createElement('span');
+      label.className = 'hud-label';
+      label.textContent = bar.label;
+
+      const barBg = document.createElement('span');
+      barBg.className = 'hud-bar';
+
+      const fill = document.createElement('span');
+      fill.className = 'hud-bar-fill';
+      fill.style.backgroundColor = bar.color;
+      fill.style.color = bar.color;
+      fill.style.width = '0%';
+      barBg.appendChild(fill);
+
+      const value = document.createElement('span');
+      value.className = 'hud-value';
+      value.textContent = '0';
+
+      group.appendChild(label);
+      group.appendChild(barBg);
+      group.appendChild(value);
+      alertEl.appendChild(group);
+
+      this.bars[bar.id] = { fill, value };
     }
+
+    this.statusBarEl.appendChild(alertEl);
+
+    // Separator
+    const sep1 = document.createElement('span');
+    sep1.className = 'hud-sep';
+    sep1.textContent = '|';
+    this.statusBarEl.appendChild(sep1);
+
+    // Speed / Armies / Kills
+    const textGroup = document.createElement('span');
+    textGroup.className = 'hud-group';
+
+    this.speedEl = document.createElement('span');
+    this.speedEl.className = 'hud-text';
+    this.speedEl.textContent = 'Spd:0';
+    textGroup.appendChild(this.speedEl);
+
+    this.armiesEl = document.createElement('span');
+    this.armiesEl.className = 'hud-text';
+    this.armiesEl.textContent = 'Arm:0';
+    textGroup.appendChild(this.armiesEl);
+
+    this.killsEl = document.createElement('span');
+    this.killsEl.className = 'hud-text';
+    this.killsEl.textContent = 'K:0.00';
+    textGroup.appendChild(this.killsEl);
+
+    this.statusBarEl.appendChild(textGroup);
+
+    // Separator
+    const sep2 = document.createElement('span');
+    sep2.className = 'hud-sep';
+    sep2.textContent = '|';
+    this.statusBarEl.appendChild(sep2);
+
+    // Flags
+    this.flagsEl = document.createElement('span');
+    this.flagsEl.className = 'hud-flags';
+    this.statusBarEl.appendChild(this.flagsEl);
+
+    // Separator
+    const sep3 = document.createElement('span');
+    sep3.className = 'hud-sep';
+    sep3.textContent = '|';
+    this.statusBarEl.appendChild(sep3);
+
+    // Lag
+    this.lagEl = document.createElement('span');
+    this.lagEl.className = 'hud-lag';
+    this.statusBarEl.appendChild(this.lagEl);
+  }
+
+  private updateStatusBar() {
+    const me = this.state.myNumber >= 0 ? this.state.players[this.state.myNumber] : null;
+    if (!me || me.status === PFREE) return;
+
+    const stats = SHIP_STATS[me.shipType];
+    const maxShield = stats?.shields ?? 100;
+    const maxHull = stats?.hull ?? 100;
+    const maxFuel = stats?.fuel ?? 10000;
+
+    this.setBar('sh', me.shield, maxShield);
+    this.setBar('hu', me.hull, maxHull);
+    this.setBar('fu', me.fuel, maxFuel);
+    this.setBar('wt', me.wTemp, 1200);
+    this.setBar('et', me.eTemp, 1200);
+
+    this.speedEl.textContent = `Spd:${me.speed}`;
+    this.armiesEl.textContent = `Arm:${me.armies}`;
+    this.killsEl.textContent = `K:${me.kills.toFixed(2)}`;
+
+    // Flags
+    const flags: string[] = [];
+    if (me.flags & PFSHIELD) flags.push('SH');
+    if (me.flags & PFCLOAK) flags.push('CL');
+    if (me.flags & PFORBIT) flags.push('OR');
+    if (me.flags & PFREPAIR) flags.push('RP');
+    if (me.flags & PFBOMB) flags.push('BM');
+    this.flagsEl.textContent = flags.join(' ');
+
+    // Alert color
+    let alertBg = '#00880044';
+    if (me.flags & PFRED) alertBg = '#88000044';
+    else if (me.flags & PFYELLOW) alertBg = '#88880044';
+    this.alertEl.style.background = alertBg;
+
+    // Lag
+    if (this.state.latencyMs >= 0) {
+      const lag = this.state.latencyMs;
+      const lagColor = lag < 100 ? '#0f0' : lag < 250 ? '#ff0' : '#f00';
+      this.lagEl.style.color = lagColor;
+      this.lagEl.textContent = `${lag}ms`;
+    }
+  }
+
+  private setBar(id: string, value: number, max: number) {
+    const bar = this.bars[id];
+    if (!bar) return;
+    const pct = Math.min(100, Math.max(0, (value / max) * 100));
+    bar.fill.style.width = `${pct}%`;
+    bar.value.textContent = `${value}`;
+  }
+
+  // ============================================================
+  // Player List (HTML table)
+  // ============================================================
+
+  private initPlayerListHeader() {
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    for (const col of ['No', 'Tm', 'Shp', 'Rank', 'Name', 'Kills', 'Login']) {
+      const th = document.createElement('th');
+      th.textContent = col;
+      headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    tbody.id = 'player-tbody';
+    table.appendChild(tbody);
+
+    this.playerListEl.appendChild(table);
+  }
+
+  private updatePlayerList() {
+    // Build hash of active players for dirty check
+    const s = this.state;
+    let hash = '';
+    for (const p of s.players) {
+      if (p.status === PFREE) continue;
+      hash += `${p.number}:${p.team}:${p.shipType}:${p.rank}:${p.name}:${p.kills}:${p.login}:${p.status};`;
+    }
+    if (hash === this.lastPlayerHash) return;
+    this.lastPlayerHash = hash;
+
+    const tbody = document.getElementById('player-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    for (const p of s.players) {
+      if (p.status === PFREE) continue;
+
+      const tr = document.createElement('tr');
+      const color = TEAM_COLORS[p.team] ?? '#888';
+      tr.style.color = p.number === s.myNumber ? '#fff' : color;
+
+      const cells = [
+        `${TEAM_LETTERS[p.team] ?? '?'}${p.number}`,
+        TEAM_LETTERS[p.team] ?? '?',
+        SHIP_SHORT[p.shipType] ?? '??',
+        RANK_NAMES[p.rank] ?? `R${p.rank}`,
+        p.name || '?',
+        p.kills.toFixed(2),
+        p.login || '',
+      ];
+
+      for (const text of cells) {
+        const td = document.createElement('td');
+        td.textContent = text;
+        tr.appendChild(td);
+      }
+
+      tbody.appendChild(tr);
+    }
+  }
+
+  // ============================================================
+  // Message Panel (HTML)
+  // ============================================================
+
+  private updateMessages() {
+    const msgs = this.state.messages;
+    if (msgs.length === this.lastMessageCount) return;
+
+    // Append only new messages
+    for (let i = this.lastMessageCount; i < msgs.length; i++) {
+      const div = document.createElement('div');
+      div.className = 'msg-line';
+      div.textContent = msgs[i].text;
+      this.messagePanelEl.appendChild(div);
+    }
+    this.lastMessageCount = msgs.length;
+
+    // Auto-scroll to bottom
+    this.messagePanelEl.scrollTop = this.messagePanelEl.scrollHeight;
   }
 
   // ============================================================
@@ -129,9 +414,11 @@ export class Renderer {
     const cx = me.x;
     const cy = me.y;
 
-    // Draw grid lines (every 5000 galactic units) - batched into single path
+    // Draw grid lines (every 5000 galactic units) - CRT subtle glow
     ctx.strokeStyle = '#111';
     ctx.lineWidth = 1;
+    ctx.shadowBlur = 2;
+    ctx.shadowColor = '#1a1a1a';
     const gridSpacing = 5000;
     const scale = size / TAC_RANGE;
     ctx.beginPath();
@@ -150,8 +437,9 @@ export class Renderer {
       }
     }
     ctx.stroke();
+    ctx.shadowBlur = 0;
 
-    // Draw planets in tactical range (set textAlign once for all planets)
+    // Draw planets in tactical range
     ctx.textAlign = 'center';
     for (const planet of s.planets) {
       if (!planet.name) continue;
@@ -162,8 +450,7 @@ export class Renderer {
     }
     ctx.textAlign = 'left';
 
-    // Draw torpedoes - batched by color to minimize state changes
-    // Group visible torps by color
+    // Draw torpedoes - batched by color, with CRT glow
     const torpsByColor = new Map<string, {sx: number, sy: number}[]>();
     const torpExplodes: {sx: number, sy: number}[] = [];
     for (const torp of s.torps) {
@@ -184,9 +471,11 @@ export class Renderer {
         torpExplodes.push({sx, sy});
       }
     }
-    // Draw each color batch as a single path
+    // Draw each color batch with glow
     for (const [color, positions] of torpsByColor) {
       ctx.fillStyle = color;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = color;
       ctx.beginPath();
       for (const p of positions) {
         ctx.moveTo(p.sx + 2, p.sy);
@@ -194,9 +483,11 @@ export class Renderer {
       }
       ctx.fill();
     }
-    // Draw torp explosions in one batch
+    // Draw torp explosions
     if (torpExplodes.length > 0) {
       ctx.fillStyle = '#ff8800';
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#ff8800';
       ctx.beginPath();
       for (const p of torpExplodes) {
         ctx.moveTo(p.sx + 5, p.sy);
@@ -204,6 +495,7 @@ export class Renderer {
       }
       ctx.fill();
     }
+    ctx.shadowBlur = 0;
 
     // Draw plasmas
     for (const plasma of s.plasmas) {
@@ -212,6 +504,8 @@ export class Renderer {
         const sy = (plasma.y - cy + TAC_RANGE / 2) * scale;
         if (sx < -10 || sx > size + 10 || sy < -10 || sy > size + 10) continue;
         ctx.fillStyle = '#ff00ff';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#ff00ff';
         ctx.beginPath();
         ctx.arc(sx, sy, 4, 0, TWO_PI);
         ctx.fill();
@@ -219,13 +513,16 @@ export class Renderer {
         const sx = (plasma.x - cx + TAC_RANGE / 2) * scale;
         const sy = (plasma.y - cy + TAC_RANGE / 2) * scale;
         ctx.fillStyle = '#ff44ff';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#ff44ff';
         ctx.beginPath();
         ctx.arc(sx, sy, 8, 0, TWO_PI);
         ctx.fill();
       }
     }
+    ctx.shadowBlur = 0;
 
-    // Draw phasers (500ms display duration, time-based)
+    // Draw phasers (500ms display duration) - bright CRT glow
     const PHASER_DISPLAY_MS = 500;
     const now = Date.now();
     for (const phaser of s.phasers) {
@@ -243,22 +540,25 @@ export class Renderer {
         sx2 = (phaser.x - cx + TAC_RANGE / 2) * scale;
         sy2 = (phaser.y - cy + TAC_RANGE / 2) * scale;
       } else {
-        // Miss - draw in direction
         const angle = (phaser.dir / 256) * TWO_PI - Math.PI / 2;
         sx2 = sx1 + Math.cos(angle) * 200;
         sy2 = sy1 + Math.sin(angle) * 200;
       }
 
-      ctx.strokeStyle = phaser.number === s.myNumber ? '#00ff00' : (TEAM_COLORS[owner.team] ?? '#888');
+      const phaserColor = phaser.number === s.myNumber ? '#00ff00' : (TEAM_COLORS[owner.team] ?? '#888');
+      ctx.strokeStyle = phaserColor;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = phaserColor;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(sx1, sy1);
       ctx.lineTo(sx2, sy2);
       ctx.stroke();
       ctx.lineWidth = 1;
+      ctx.shadowBlur = 0;
     }
 
-    // Draw ships (set textAlign center for labels)
+    // Draw ships
     ctx.textAlign = 'center';
     for (const player of s.players) {
       if (player.status !== PALIVE && player.status !== PEXPLODE) continue;
@@ -277,32 +577,18 @@ export class Renderer {
     }
     ctx.textAlign = 'left';
 
-    // Draw HUD
-    this.renderHUD(ctx, size, me);
-
     // Draw warning text
     if (s.warningText && Date.now() - s.warningTime < 3000) {
       ctx.fillStyle = '#ff0000';
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = '#ff0000';
       ctx.font = '14px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(s.warningText, size / 2, 20);
       ctx.textAlign = 'left';
       ctx.font = '11px monospace';
+      ctx.shadowBlur = 0;
     }
-
-    // Draw messages (last 3, no array allocation)
-    ctx.font = '11px monospace';
-    const msgStart = Math.max(0, s.messages.length - 3);
-    for (let i = msgStart; i < s.messages.length; i++) {
-      const msg = s.messages[i];
-      const age = now - msg.time;
-      if (age > 10000) continue;
-      const alpha = Math.max(0, 1 - age / 10000);
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = '#0f0';
-      ctx.fillText(msg.text, 8, size - 40 + (i - msgStart) * 14);
-    }
-    ctx.globalAlpha = 1;
 
     ctx.restore();
   }
@@ -310,55 +596,61 @@ export class Renderer {
   private drawTacShip(ctx: CanvasRenderingContext2D, player: Player, sx: number, sy: number) {
     const isMe = player.number === this.state.myNumber;
     const color = isMe ? '#fff' : (TEAM_COLORS[player.team] ?? '#888');
-    const angle = (player.dir / 256) * TWO_PI - Math.PI / 2;
 
-    // Shield circle
+    // Cloak transparency
+    if (player.flags & PFCLOAK) {
+      ctx.globalAlpha = 0.3;
+    }
+
+    // Shield circle with CRT glow
     if (player.flags & PFSHIELD) {
       ctx.strokeStyle = color;
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = color;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(sx, sy, 14, 0, TWO_PI);
       ctx.stroke();
+      ctx.shadowBlur = 0;
     }
 
-    // Ship body - triangle pointing in direction
-    const shipSize = 10;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(sx + Math.cos(angle) * shipSize, sy + Math.sin(angle) * shipSize);
-    ctx.lineTo(
-      sx + Math.cos(angle + 2.4) * shipSize * 0.7,
-      sy + Math.sin(angle + 2.4) * shipSize * 0.7
-    );
-    ctx.lineTo(
-      sx + Math.cos(angle - 2.4) * shipSize * 0.7,
-      sy + Math.sin(angle - 2.4) * shipSize * 0.7
-    );
-    ctx.closePath();
-    ctx.fill();
+    // Ship body — vector SVG ship
+    drawShipSVG(ctx, player.team, player.shipType, player.dir, sx, sy, 11, color);
 
-    // Label: team letter + player number (textAlign already 'center' from caller)
+    // Label: team letter + player number
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = color;
+    ctx.fillStyle = color;
     const teamLetter = TEAM_LETTERS[player.team] ?? '?';
-    const label = `${teamLetter}${player.number}`;
-    ctx.fillText(label, sx, sy + 24);
+    ctx.fillText(`${teamLetter}${player.number}`, sx, sy + 24);
 
     // Ship type
     ctx.fillStyle = '#888';
+    ctx.shadowColor = '#888';
     ctx.fillText(SHIP_SHORT[player.shipType] ?? '??', sx, sy + 34);
+    ctx.shadowBlur = 0;
+
+    // Restore alpha
+    if (player.flags & PFCLOAK) {
+      ctx.globalAlpha = 1;
+    }
   }
 
   private drawTacPlanet(ctx: CanvasRenderingContext2D, planet: Planet, sx: number, sy: number) {
     const color = TEAM_COLORS[planet.owner] ?? '#888';
     const radius = 12;
 
-    // Planet circle
+    // Planet circle with CRT glow
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = color;
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(sx, sy, radius, 0, TWO_PI);
     ctx.stroke();
 
-    // Fill slightly (use pre-computed alpha color)
+    // Fill slightly
+    ctx.shadowBlur = 0;
     ctx.fillStyle = TEAM_COLORS_ALPHA[planet.owner] ?? '#88888833';
     ctx.fill();
 
@@ -366,9 +658,12 @@ export class Renderer {
     if (planet.flags & PLHOME) {
       ctx.lineWidth = 1;
       ctx.strokeStyle = '#fff';
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = '#fff';
       ctx.beginPath();
       ctx.arc(sx, sy, radius + 3, 0, TWO_PI);
       ctx.stroke();
+      ctx.shadowBlur = 0;
     }
 
     // Resource indicators
@@ -377,7 +672,9 @@ export class Renderer {
     if (planet.flags & PLFUEL) indicators += 'F';
     if (planet.flags & PLAGRI) indicators += 'A';
 
-    // Planet name (textAlign already 'center' from caller)
+    // Planet name
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = color;
     ctx.fillStyle = color;
     ctx.fillText(planet.name.substring(0, 3), sx, sy + radius + 12);
 
@@ -389,23 +686,27 @@ export class Renderer {
     // Resource indicators
     if (indicators) {
       ctx.fillStyle = '#666';
+      ctx.shadowColor = '#666';
       ctx.fillText(indicators, sx, sy + radius + 22);
     }
+    ctx.shadowBlur = 0;
   }
 
   private drawExplosion(ctx: CanvasRenderingContext2D, sx: number, sy: number, startTime: number) {
-    if (!startTime) return; // no valid start time, skip
-    const EXPLOSION_DURATION = 500; // ms
+    if (!startTime) return;
+    const EXPLOSION_DURATION = 500;
     const elapsed = Date.now() - startTime;
     const t = Math.min(1, Math.max(0, elapsed / EXPLOSION_DURATION));
     const radius = 10 + t * 20;
     const alpha = 1 - t;
+
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = `rgba(255, 128, 0, ${alpha})`;
     ctx.fillStyle = `rgba(255, ${Math.floor(128 * (1 - t))}, 0, ${alpha})`;
     ctx.beginPath();
     ctx.arc(sx, sy, radius, 0, TWO_PI);
     ctx.fill();
 
-    // Secondary ring for visual impact
     if (t < 0.7) {
       ctx.strokeStyle = `rgba(255, 255, 0, ${0.5 * (1 - t / 0.7)})`;
       ctx.lineWidth = 2;
@@ -413,102 +714,7 @@ export class Renderer {
       ctx.arc(sx, sy, radius + 5, 0, TWO_PI);
       ctx.stroke();
     }
-  }
-
-  // ============================================================
-  // HUD
-  // ============================================================
-
-  private renderHUD(ctx: CanvasRenderingContext2D, size: number, me: Player) {
-    ctx.save();
-    ctx.textAlign = 'left';
-    ctx.font = '11px monospace';
-
-    const barWidth = 120;
-    const barHeight = 8;
-    const x = size - barWidth - 12;
-    let y = 12;
-
-    // Get ship-specific max values
-    const stats = SHIP_STATS[me.shipType];
-    const maxShield = stats?.shields ?? 100;
-    const maxHull = stats?.hull ?? 100;
-    const maxFuel = stats?.fuel ?? 10000;
-
-    // Alert color background indicator
-    let alertColor = '#008800';
-    if (me.flags & PFRED) alertColor = '#880000';
-    else if (me.flags & PFYELLOW) alertColor = '#888800';
-
-    ctx.fillStyle = alertColor + '44';
-    ctx.fillRect(x - 4, y - 4, barWidth + 16, 152);
-
-    // Shields
-    this.drawBar(ctx, 'SH', me.shield, maxShield, x, y, barWidth, barHeight, '#00ccff');
-    y += 16;
-
-    // Hull (damage)
-    this.drawBar(ctx, 'HU', me.hull, maxHull, x, y, barWidth, barHeight, '#cc8800');
-    y += 16;
-
-    // Fuel
-    this.drawBar(ctx, 'FU', me.fuel, maxFuel, x, y, barWidth, barHeight, '#00ff00');
-    y += 16;
-
-    // Weapon temp
-    this.drawBar(ctx, 'WT', me.wTemp, 1200, x, y, barWidth, barHeight, '#ff4444');
-    y += 16;
-
-    // Engine temp
-    this.drawBar(ctx, 'ET', me.eTemp, 1200, x, y, barWidth, barHeight, '#ff8844');
-    y += 16;
-
-    // Speed and armies
-    ctx.fillStyle = '#0f0';
-    ctx.fillText(`Spd: ${me.speed}  Arm: ${me.armies}  K: ${me.kills.toFixed(2)}`, x, y + 8);
-    y += 16;
-
-    // Flags
-    const flags: string[] = [];
-    if (me.flags & PFSHIELD) flags.push('SH');
-    if (me.flags & PFCLOAK) flags.push('CL');
-    if (me.flags & PFORBIT) flags.push('OR');
-    if (me.flags & PFREPAIR) flags.push('RP');
-    if (me.flags & PFBOMB) flags.push('BM');
-    ctx.fillText(flags.join(' '), x, y + 8);
-    y += 16;
-
-    // Latency
-    if (this.state.latencyMs >= 0) {
-      const lag = this.state.latencyMs;
-      ctx.fillStyle = lag < 100 ? '#0f0' : lag < 250 ? '#ff0' : '#f00';
-      ctx.fillText(`Lag: ${lag}ms`, x, y + 8);
-    }
-
-    ctx.restore();
-  }
-
-  private drawBar(
-    ctx: CanvasRenderingContext2D,
-    label: string, value: number, max: number,
-    x: number, y: number, w: number, h: number, color: string
-  ) {
-    const pct = Math.min(1, Math.max(0, value / max));
-
-    ctx.fillStyle = '#888';
-    ctx.fillText(label, x - 24, y + h);
-
-    // Background
-    ctx.fillStyle = '#222';
-    ctx.fillRect(x, y, w, h);
-
-    // Fill
-    ctx.fillStyle = color;
-    ctx.fillRect(x, y, w * pct, h);
-
-    // Value
-    ctx.fillStyle = '#fff';
-    ctx.fillText(`${value}`, x + w + 4, y + h);
+    ctx.shadowBlur = 0;
   }
 
   // ============================================================
@@ -528,20 +734,30 @@ export class Renderer {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, size, size);
 
-    // Grid - quadrant borders
+    // Grid - quadrant borders with subtle glow
     ctx.strokeStyle = '#222';
     ctx.lineWidth = 1;
+    ctx.shadowBlur = 2;
+    ctx.shadowColor = '#222';
     ctx.beginPath();
     ctx.moveTo(size / 2, 0); ctx.lineTo(size / 2, size);
     ctx.moveTo(0, size / 2); ctx.lineTo(size, size / 2);
     ctx.stroke();
+    ctx.shadowBlur = 0;
 
     // Team labels in corners
     ctx.font = '12px monospace';
-    ctx.fillStyle = TEAM_COLORS[FED]; ctx.fillText('FED', 8, 16);
-    ctx.fillStyle = TEAM_COLORS[ROM]; ctx.fillText('ROM', size - 36, 16);
-    ctx.fillStyle = TEAM_COLORS[KLI]; ctx.fillText('KLI', 8, size - 8);
-    ctx.fillStyle = TEAM_COLORS[ORI]; ctx.fillText('ORI', size - 36, size - 8);
+    ctx.shadowBlur = 4;
+
+    ctx.fillStyle = TEAM_COLORS[FED]; ctx.shadowColor = TEAM_COLORS[FED];
+    ctx.fillText('FED', 8, 16);
+    ctx.fillStyle = TEAM_COLORS[ROM]; ctx.shadowColor = TEAM_COLORS[ROM];
+    ctx.fillText('ROM', size - 36, 16);
+    ctx.fillStyle = TEAM_COLORS[KLI]; ctx.shadowColor = TEAM_COLORS[KLI];
+    ctx.fillText('KLI', 8, size - 8);
+    ctx.fillStyle = TEAM_COLORS[ORI]; ctx.shadowColor = TEAM_COLORS[ORI];
+    ctx.fillText('ORI', size - 36, size - 8);
+    ctx.shadowBlur = 0;
     ctx.font = '10px monospace';
 
     // Draw planets
@@ -553,11 +769,14 @@ export class Renderer {
       const color = TEAM_COLORS[planet.owner] ?? '#888';
 
       ctx.fillStyle = color;
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = color;
       ctx.beginPath();
       ctx.arc(sx, sy, 3, 0, TWO_PI);
       ctx.fill();
 
       ctx.fillText(planet.name.substring(0, 3), sx, sy + 12);
+      ctx.shadowBlur = 0;
     }
 
     // Draw players
@@ -571,7 +790,10 @@ export class Renderer {
       const teamLetter = TEAM_LETTERS[player.team] ?? '?';
 
       ctx.fillStyle = color;
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = color;
       ctx.fillText(`${teamLetter}${player.number}`, sx, sy + 4);
+      ctx.shadowBlur = 0;
     }
     ctx.textAlign = 'left';
 
@@ -583,7 +805,10 @@ export class Renderer {
       const my = me.y * scale;
 
       ctx.strokeStyle = '#444';
+      ctx.shadowBlur = 2;
+      ctx.shadowColor = '#444';
       ctx.strokeRect(mx - halfRange, my - halfRange, halfRange * 2, halfRange * 2);
+      ctx.shadowBlur = 0;
     }
 
     ctx.restore();
@@ -598,11 +823,14 @@ export class Renderer {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, size, size);
 
-    // Title
+    // Title with CRT glow
     ctx.fillStyle = '#0f0';
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = '#0f0';
     ctx.font = 'bold 20px monospace';
     ctx.textAlign = 'center';
     ctx.fillText('SELECT TEAM & SHIP', size / 2, 30);
+    ctx.shadowBlur = 0;
 
     const mask = this.state.teamMask;
     const teams = [
@@ -626,30 +854,29 @@ export class Renderer {
       const available = !!(mask & t.flag);
       const selected = selectedTeam === t.flag;
 
-      // Box background
       if (selected) {
         ctx.fillStyle = t.color + '44';
         ctx.fillRect(x, teamY, boxW, boxH);
       }
 
-      // Box border
       ctx.strokeStyle = available ? t.color : '#333';
+      ctx.shadowBlur = selected ? 6 : 0;
+      ctx.shadowColor = t.color;
       ctx.lineWidth = selected ? 3 : 1;
       ctx.strokeRect(x, teamY, boxW, boxH);
+      ctx.shadowBlur = 0;
 
-      // Team name
       ctx.fillStyle = available ? t.color : '#444';
       ctx.font = 'bold 13px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(t.name, x + boxW / 2, teamY + 25);
 
-      // Key hint
       ctx.font = '11px monospace';
       ctx.fillStyle = available ? '#aaa' : '#333';
       ctx.fillText(`[${t.key}]`, x + boxW / 2, teamY + 45);
     }
 
-    // Ship selection (shown when team is selected)
+    // Ship selection
     if (selectedTeam) {
       const ships = [
         { type: SCOUT,      name: 'Scout',      short: 'SC', key: 'S', stats: SHIP_STATS[SCOUT] },
@@ -665,7 +892,6 @@ export class Renderer {
       ctx.textAlign = 'center';
       ctx.fillText('Choose a ship:', size / 2, teamY + boxH + 30);
 
-      // Ship cards
       const shipW = 72;
       const shipH = 120;
       const shipGap = 8;
@@ -679,32 +905,22 @@ export class Renderer {
         const s = ships[i];
         const x = shipStartX + i * (shipW + shipGap);
 
-        // Card background
         ctx.fillStyle = '#111';
         ctx.fillRect(x, shipY, shipW, shipH);
         ctx.strokeStyle = teamColor;
         ctx.lineWidth = 1;
         ctx.strokeRect(x, shipY, shipW, shipH);
 
-        // Ship icon (triangle)
+        // Ship icon — use vector ship instead of triangle
         const cx = x + shipW / 2;
         const cy = shipY + 25;
-        const iconSize = 12;
-        ctx.fillStyle = teamColor;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - iconSize);
-        ctx.lineTo(cx - iconSize * 0.7, cy + iconSize * 0.5);
-        ctx.lineTo(cx + iconSize * 0.7, cy + iconSize * 0.5);
-        ctx.closePath();
-        ctx.fill();
+        drawShipSVG(ctx, selectedTeam, s.type, 0, cx, cy, 14, teamColor);
 
-        // Ship name
         ctx.font = 'bold 10px monospace';
         ctx.fillStyle = teamColor;
         ctx.textAlign = 'center';
         ctx.fillText(s.name, cx, shipY + 50);
 
-        // Stats
         ctx.font = '9px monospace';
         ctx.fillStyle = '#888';
         if (s.stats) {
@@ -714,7 +930,6 @@ export class Renderer {
           ctx.fillText(`Arm:${s.stats.maxArmies}`, cx, shipY + 101);
         }
 
-        // Key hint
         ctx.font = '11px monospace';
         ctx.fillStyle = '#aaa';
         ctx.fillText(`[${s.key}]`, cx, shipY + shipH - 4);
@@ -745,17 +960,19 @@ export class Renderer {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, size, size);
 
-    // Title
     ctx.fillStyle = '#0f0';
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = '#0f0';
     ctx.font = 'bold 24px monospace';
     ctx.textAlign = 'center';
     ctx.fillText('NEONETREK', size / 2, 40);
+    ctx.shadowBlur = 0;
+
     ctx.font = '11px monospace';
     ctx.fillStyle = '#888';
     ctx.fillText('A modern Netrek client', size / 2, 58);
     ctx.textAlign = 'left';
 
-    // MOTD text
     ctx.font = '11px monospace';
     ctx.fillStyle = '#0a0';
     const startLine = Math.max(0, this.state.motdLines.length - 25);
@@ -765,7 +982,6 @@ export class Renderer {
       ctx.fillText(this.state.motdLines[i], 10, y);
     }
 
-    // Login prompt - show prominently during login phase
     ctx.textAlign = 'center';
     ctx.font = '14px monospace';
     if (this.state.warningText) {
@@ -773,7 +989,6 @@ export class Renderer {
       ctx.fillText(this.state.warningText, size / 2, size - 50);
     }
 
-    // Connection status
     ctx.font = '12px monospace';
     ctx.fillStyle = this.state.connected ? '#0a0' : '#f00';
     ctx.fillText(
@@ -781,5 +996,206 @@ export class Renderer {
       size / 2, size - 20
     );
     ctx.textAlign = 'left';
+  }
+
+  // ============================================================
+  // Help Overlay
+  // ============================================================
+
+  private renderHelp(ctx: CanvasRenderingContext2D, size: number) {
+    ctx.save();
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
+    ctx.fillRect(0, 0, size, size);
+
+    ctx.textAlign = 'center';
+
+    ctx.fillStyle = '#0f0';
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = '#0f0';
+    ctx.font = 'bold 18px monospace';
+    ctx.fillText('KEYBOARD COMMANDS', size / 2, 32);
+    ctx.shadowBlur = 0;
+
+    ctx.font = '10px monospace';
+    ctx.fillStyle = '#666';
+    ctx.fillText('Press ? to toggle  |  Press any key to dismiss', size / 2, 48);
+
+    const col1x = size * 0.15;
+    const col2x = size * 0.58;
+    const lineH = 16;
+    let y: number;
+
+    ctx.textAlign = 'left';
+    ctx.font = '11px monospace';
+
+    // --- Column 1: Movement & Combat ---
+    y = 72;
+
+    ctx.fillStyle = '#0cf';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('MOVEMENT', col1x, y);
+    y += lineH + 2;
+    ctx.font = '11px monospace';
+
+    const movementKeys = [
+      ['0-9', 'Set speed (0-9)'],
+      ['!/@/#', 'Speed 10/11/12'],
+      ['Left click', 'Set course'],
+    ];
+    for (const [key, desc] of movementKeys) {
+      ctx.fillStyle = '#ff0';
+      ctx.fillText(key, col1x, y);
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(desc, col1x + 90, y);
+      y += lineH;
+    }
+
+    y += 8;
+    ctx.fillStyle = '#0cf';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('WEAPONS', col1x, y);
+    y += lineH + 2;
+    ctx.font = '11px monospace';
+
+    const weaponKeys = [
+      ['Right click', 'Fire torpedo'],
+      ['Mid click', 'Fire phaser'],
+      ['f / F', 'Fire plasma'],
+      ['d', 'Det enemy torps'],
+    ];
+    for (const [key, desc] of weaponKeys) {
+      ctx.fillStyle = '#ff0';
+      ctx.fillText(key, col1x, y);
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(desc, col1x + 90, y);
+      y += lineH;
+    }
+
+    y += 8;
+    ctx.fillStyle = '#0cf';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('DEFENSE', col1x, y);
+    y += lineH + 2;
+    ctx.font = '11px monospace';
+
+    const defenseKeys = [
+      ['s', 'Toggle shields'],
+      ['c', 'Toggle cloak'],
+      ['R', 'Toggle repair'],
+    ];
+    for (const [key, desc] of defenseKeys) {
+      ctx.fillStyle = '#ff0';
+      ctx.fillText(key, col1x, y);
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(desc, col1x + 90, y);
+      y += lineH;
+    }
+
+    y += 8;
+    ctx.fillStyle = '#0cf';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('TRACTOR / REPRESSOR', col1x, y);
+    y += lineH + 2;
+    ctx.font = '11px monospace';
+
+    const tractorKeys = [
+      ['t', 'Tractor beam on'],
+      ['T', 'Tractor beam off'],
+      ['y', 'Repressor on'],
+      ['Y', 'Repressor off'],
+    ];
+    for (const [key, desc] of tractorKeys) {
+      ctx.fillStyle = '#ff0';
+      ctx.fillText(key, col1x, y);
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(desc, col1x + 90, y);
+      y += lineH;
+    }
+
+    // --- Column 2: Actions & View ---
+    y = 72;
+
+    ctx.fillStyle = '#0cf';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('PLANET OPS', col2x, y);
+    y += lineH + 2;
+    ctx.font = '11px monospace';
+
+    const planetKeys = [
+      ['o', 'Toggle orbit'],
+      ['b', 'Toggle bombing'],
+      ['z', 'Beam up armies'],
+      ['x', 'Beam down armies'],
+    ];
+    for (const [key, desc] of planetKeys) {
+      ctx.fillStyle = '#ff0';
+      ctx.fillText(key, col2x, y);
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(desc, col2x + 70, y);
+      y += lineH;
+    }
+
+    y += 8;
+    ctx.fillStyle = '#0cf';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('COMMUNICATION', col2x, y);
+    y += lineH + 2;
+    ctx.font = '11px monospace';
+
+    const chatKeys = [
+      [';', 'Chat to all'],
+      ['Enter', 'Chat to team'],
+      ['Esc', 'Cancel chat'],
+    ];
+    for (const [key, desc] of chatKeys) {
+      ctx.fillStyle = '#ff0';
+      ctx.fillText(key, col2x, y);
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(desc, col2x + 70, y);
+      y += lineH;
+    }
+
+    y += 8;
+    ctx.fillStyle = '#0cf';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('VIEW & OTHER', col2x, y);
+    y += lineH + 2;
+    ctx.font = '11px monospace';
+
+    const viewKeys = [
+      ['W', 'Declare war (all)'],
+      ['M', 'Toggle sound'],
+      ['Shift+Q', 'Quit game'],
+      ['?', 'This help screen'],
+    ];
+    for (const [key, desc] of viewKeys) {
+      ctx.fillStyle = '#ff0';
+      ctx.fillText(key, col2x, y);
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(desc, col2x + 70, y);
+      y += lineH;
+    }
+
+    y += 8;
+    ctx.fillStyle = '#0cf';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('OUTFIT SCREEN', col2x, y);
+    y += lineH + 2;
+    ctx.font = '11px monospace';
+
+    const outfitKeys = [
+      ['F/R/K/O', 'Select team'],
+      ['S/D/C/B/A/G', 'Select ship'],
+    ];
+    for (const [key, desc] of outfitKeys) {
+      ctx.fillStyle = '#ff0';
+      ctx.fillText(key, col2x, y);
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(desc, col2x + 70, y);
+      y += lineH;
+    }
+
+    ctx.restore();
   }
 }

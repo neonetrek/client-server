@@ -454,12 +454,6 @@ describe('InputHandler', () => {
       expect(net.sendWar).toHaveBeenCalledWith(ROM | KLI | ORI);
     });
 
-    it('Tab toggles view', () => {
-      const e = keyDown('Tab');
-      expect(renderer.toggleView).toHaveBeenCalled();
-      expect(e.preventDefault).toHaveBeenCalled();
-    });
-
     it('M toggles mute', () => {
       keyDown('M');
       expect(net.audio.toggleMute).toHaveBeenCalled();
@@ -638,12 +632,6 @@ describe('InputHandler', () => {
 
     it('mouse ignored in non-alive phase', () => {
       state.phase = 'outfit';
-      mouseDown(0, 250, 0);
-      expect(net.sendDirection).not.toHaveBeenCalled();
-    });
-
-    it('mouse ignored in galactic view', () => {
-      renderer.isGalacticView = true;
       mouseDown(0, 250, 0);
       expect(net.sendDirection).not.toHaveBeenCalled();
     });

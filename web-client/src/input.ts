@@ -32,6 +32,9 @@ export class InputHandler {
   private chatBuffer = '';
   private chatTarget: 'all' | 'team' | number = 'all'; // 'all', 'team', or player number
 
+  // Help overlay
+  private showHelp = false;
+
   constructor(net: NetrekConnection, state: GameState, renderer: Renderer) {
     this.net = net;
     this.state = state;
@@ -40,6 +43,7 @@ export class InputHandler {
 
   get isChatting(): boolean { return this.chatMode; }
   get chatText(): string { return this.chatBuffer; }
+  get isHelpVisible(): boolean { return this.showHelp; }
   get chatTargetLabel(): string {
     if (this.chatTarget === 'all') return 'ALL';
     if (this.chatTarget === 'team') return 'TEAM';
@@ -65,6 +69,18 @@ export class InputHandler {
 
   private onKeyDown(e: KeyboardEvent) {
     this.keysDown.add(e.key);
+
+    // Help toggle works in any phase
+    if (e.key === '?') {
+      this.showHelp = !this.showHelp;
+      return;
+    }
+
+    // Dismiss help on any other key
+    if (this.showHelp) {
+      this.showHelp = false;
+      return;
+    }
 
     // Chat mode intercepts all keys
     if (this.chatMode) {
@@ -298,12 +314,6 @@ export class InputHandler {
         // Will be enhanced with click-targeting later
         break;
 
-      // Toggle tactical/galactic
-      case 'Tab':
-        this.renderer.toggleView();
-        e.preventDefault();
-        break;
-
       // Enter chat mode
       case ';':
         this.chatMode = true;
@@ -378,7 +388,6 @@ export class InputHandler {
 
   private onMouseDown(e: MouseEvent, canvas: HTMLCanvasElement) {
     if (this.state.phase !== 'alive') return;
-    if (this.renderer.isGalacticView) return;
     if (this.chatMode) return;
 
     const rect = canvas.getBoundingClientRect();
