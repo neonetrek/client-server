@@ -78,8 +78,9 @@ function gameLoop() {
 }
 requestAnimationFrame(gameLoop);
 
-// Also force re-render at REDRAW_RATE for animations
+// Also force re-render at REDRAW_RATE for animations and continuous input
 setInterval(() => {
+  input.tickHeldKeys();
   needsRender = true;
 }, REDRAW_RATE);
 

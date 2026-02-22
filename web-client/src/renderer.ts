@@ -809,8 +809,12 @@ export class Renderer {
       ctx.shadowBlur = 0;
     }
 
-    // Trajectory line (behind ships, on top of projectiles)
-    this.renderTrajectoryLine(ctx, size, me);
+    // Trajectory line (behind ships, on top of projectiles) — only when alive
+    if (me.status === PALIVE) {
+      this.renderTrajectoryLine(ctx, size, me);
+    } else {
+      this.trajectoryInited = false;
+    }
 
     // Draw ships
     ctx.textAlign = 'center';
@@ -1318,7 +1322,9 @@ export class Renderer {
     ctx.font = '11px monospace';
 
     const movementKeys = [
-      ['0-9', 'Set speed (0-9)'],
+      ['\u2190/\u2192', 'Turn left/right (hold)'],
+      ['\u2191/\u2193', 'Speed up/down'],
+      ['0-9', 'Set speed directly'],
       ['!/@/#', 'Speed 10/11/12'],
       ['Left click', 'Set course'],
     ];
