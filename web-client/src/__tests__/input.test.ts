@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { InputHandler } from '../input';
 import { createGameState, GameState } from '../state';
 import {
-  PFSHIELD, PFCLOAK, PFORBIT, PFREPAIR, PFBOMB,
+  PFSHIELD, PFCLOAK, PFORBIT, PFREPAIR, PFBOMB, PFTRACT, PFPRESS,
   FED, ROM, KLI, ORI,
   SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, SGALAXY,
   MALL, MTEAM, MINDIV,
@@ -434,17 +434,28 @@ describe('InputHandler', () => {
       expect(net.sendPlasma).toHaveBeenCalledWith(64);
     });
 
-    it('t/T toggles tractor on/off', () => {
+    it('t key sends torpedo', () => {
       keyDown('t');
+      expect(net.sendTorp).toHaveBeenCalled();
+    });
+
+    it('r toggles tractor beam', () => {
+      state.players[0].flags = 0;
+      keyDown('r');
       expect(net.sendTractor).toHaveBeenCalledWith(true, 0);
-      keyDown('T');
+      net.sendTractor.mockClear();
+      state.players[0].flags = PFTRACT;
+      keyDown('r');
       expect(net.sendTractor).toHaveBeenCalledWith(false, 0);
     });
 
-    it('y/Y toggles repressor on/off', () => {
+    it('y toggles repressor', () => {
+      state.players[0].flags = 0;
       keyDown('y');
       expect(net.sendRepress).toHaveBeenCalledWith(true, 0);
-      keyDown('Y');
+      net.sendRepress.mockClear();
+      state.players[0].flags = PFPRESS;
+      keyDown('y');
       expect(net.sendRepress).toHaveBeenCalledWith(false, 0);
     });
 
@@ -608,6 +619,11 @@ describe('InputHandler', () => {
 
     it('middle click sends phaser', () => {
       mouseDown(1, 250, 0);
+      expect(net.sendPhaser).toHaveBeenCalled();
+    });
+
+    it('p key sends phaser', () => {
+      keyDown('p');
       expect(net.sendPhaser).toHaveBeenCalled();
     });
 

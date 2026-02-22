@@ -70,7 +70,14 @@ wss.on('connection', (ws) => {
   // Forward TCP data from server → browser (as binary)
   tcp.on('data', (data) => {
     if (ws.readyState === ws.OPEN) {
-      console.log(`[proxy] S→C ${data.length}B first_type=${data[0]}`);
+      // Log extra detail for MASK (19) and PSTATUS (20) packets
+      if (data[0] === 19) {
+        console.log(`[proxy] S→C MASK mask=0x${data[1].toString(16)} (${data.length}B)`);
+      } else if (data[0] === 20) {
+        console.log(`[proxy] S→C PSTATUS pnum=${data[1]} status=${data[2]} (${data.length}B)`);
+      } else {
+        console.log(`[proxy] S→C ${data.length}B first_type=${data[0]}`);
+      }
       ws.send(data);
     }
   });

@@ -871,15 +871,16 @@ export class Renderer {
 
     const mask = this.state.teamMask;
     const teams = [
-      { flag: FED, name: 'Federation', key: 'F', color: TEAM_COLORS[FED] },
-      { flag: ROM, name: 'Romulan',    key: 'R', color: TEAM_COLORS[ROM] },
-      { flag: KLI, name: 'Klingon',    key: 'K', color: TEAM_COLORS[KLI] },
-      { flag: ORI, name: 'Orion',      key: 'O', color: TEAM_COLORS[ORI] },
+      { flag: FED, name: 'Federation', key: 'f', color: TEAM_COLORS[FED] },
+      { flag: ROM, name: 'Romulan',    key: 'r', color: TEAM_COLORS[ROM] },
+      { flag: KLI, name: 'Klingon',    key: 'k', color: TEAM_COLORS[KLI] },
+      { flag: ORI, name: 'Orion',      key: 'o', color: TEAM_COLORS[ORI] },
     ];
 
-    const boxW = 100;
+    const gap = 12;
+    const teamPad = 10;
+    const boxW = Math.min(100, Math.floor((size - teamPad * 2 - (teams.length - 1) * gap) / teams.length));
     const boxH = 60;
-    const gap = 16;
     const totalW = teams.length * boxW + (teams.length - 1) * gap;
     const startX = (size - totalW) / 2;
     const teamY = 55;
@@ -916,12 +917,12 @@ export class Renderer {
     // Ship selection
     if (selectedTeam) {
       const ships = [
-        { type: SCOUT,      name: 'Scout',      short: 'SC', key: 'S', stats: SHIP_STATS[SCOUT] },
-        { type: DESTROYER,  name: 'Destroyer',   short: 'DD', key: 'D', stats: SHIP_STATS[DESTROYER] },
-        { type: CRUISER,    name: 'Cruiser',     short: 'CA', key: 'C', stats: SHIP_STATS[CRUISER] },
-        { type: BATTLESHIP, name: 'Battleship',  short: 'BB', key: 'B', stats: SHIP_STATS[BATTLESHIP] },
-        { type: ASSAULT,    name: 'Assault',     short: 'AS', key: 'A', stats: SHIP_STATS[ASSAULT] },
-        { type: SGALAXY,    name: 'Galaxy',      short: 'GA', key: 'G', stats: SHIP_STATS[SGALAXY] },
+        { type: SCOUT,      name: 'Scout',      short: 'SC', key: 's', stats: SHIP_STATS[SCOUT] },
+        { type: DESTROYER,  name: 'Destroyer',   short: 'DD', key: 'd', stats: SHIP_STATS[DESTROYER] },
+        { type: CRUISER,    name: 'Cruiser',     short: 'CA', key: 'c', stats: SHIP_STATS[CRUISER] },
+        { type: BATTLESHIP, name: 'Battleship',  short: 'BB', key: 'b', stats: SHIP_STATS[BATTLESHIP] },
+        { type: ASSAULT,    name: 'Assault',     short: 'AS', key: 'a', stats: SHIP_STATS[ASSAULT] },
+        { type: SGALAXY,    name: 'Galaxy',      short: 'GA', key: 'g', stats: SHIP_STATS[SGALAXY] },
       ];
 
       ctx.fillStyle = '#888';
@@ -929,9 +930,10 @@ export class Renderer {
       ctx.textAlign = 'center';
       ctx.fillText('Choose a ship:', size / 2, teamY + boxH + 30);
 
-      const shipW = 72;
+      const shipGap = 6;
+      const shipPad = 10;
+      const shipW = Math.min(72, Math.floor((size - shipPad * 2 - (ships.length - 1) * shipGap) / ships.length));
       const shipH = 120;
-      const shipGap = 8;
       const totalShipW = ships.length * shipW + (ships.length - 1) * shipGap;
       const shipStartX = (size - totalShipW) / 2;
       const shipY = teamY + boxH + 45;
@@ -978,12 +980,35 @@ export class Renderer {
       ctx.fillText('Select a team to see available ships', size / 2, teamY + boxH + 30);
     }
 
+    // Player rank and info
+    const me = this.state.players[this.state.myNumber];
+    if (me) {
+      const rankName = RANK_NAMES[me.rank] ?? `Rank ${me.rank}`;
+      ctx.fillStyle = '#888';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Rank: ${rankName}`, 10, size - 14);
+      ctx.textAlign = 'right';
+      ctx.fillText(`Teams: 0x${mask.toString(16)}`, size - 10, size - 14);
+    }
+
     // Queue position
     if (this.state.queuePos >= 0) {
       ctx.fillStyle = '#ff0';
       ctx.font = '12px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(`Queue position: ${this.state.queuePos}`, size / 2, size - 30);
+    }
+
+    // Warning text (server messages like rank requirements)
+    if (this.state.warningText && (Date.now() - this.state.warningTime) < 5000) {
+      ctx.fillStyle = '#ff0';
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = '#ff0';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(this.state.warningText, size / 2, size - 48);
+      ctx.shadowBlur = 0;
     }
 
     ctx.restore();
@@ -1096,9 +1121,9 @@ export class Renderer {
     ctx.font = '11px monospace';
 
     const weaponKeys = [
-      ['Right click', 'Fire torpedo'],
-      ['Mid click', 'Fire phaser'],
-      ['f / F', 'Fire plasma'],
+      ['t / Right click', 'Fire torpedo'],
+      ['p / Mid click', 'Fire phaser'],
+      ['f', 'Fire plasma'],
       ['d', 'Det enemy torps'],
     ];
     for (const [key, desc] of weaponKeys) {
@@ -1137,10 +1162,8 @@ export class Renderer {
     ctx.font = '11px monospace';
 
     const tractorKeys = [
-      ['t', 'Tractor beam on'],
-      ['T', 'Tractor beam off'],
-      ['y', 'Repressor on'],
-      ['Y', 'Repressor off'],
+      ['r', 'Tractor beam toggle'],
+      ['y', 'Repressor toggle'],
     ];
     for (const [key, desc] of tractorKeys) {
       ctx.fillStyle = '#ff0';

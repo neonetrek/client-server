@@ -9,7 +9,7 @@ import { NetrekConnection } from './net';
 import { GameState } from './state';
 import { Renderer } from './renderer';
 import {
-  PFSHIELD, PFCLOAK, PFORBIT, PFREPAIR, PFBOMB,
+  PFSHIELD, PFCLOAK, PFORBIT, PFREPAIR, PFBOMB, PFTRACT, PFPRESS,
   FED, ROM, KLI, ORI,
   SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, STARBASE, SGALAXY,
   MALL, MTEAM, MINDIV,
@@ -277,6 +277,16 @@ export class InputHandler {
         this.net.sendDetTorps();
         break;
 
+      // Phaser (keyboard alternative to middle-click)
+      case 'p':
+        this.net.sendPhaser(me.dir);
+        break;
+
+      // Torpedo (keyboard alternative to right-click)
+      case 't':
+        this.net.sendTorp(me.dir);
+        break;
+
       // Plasma torpedo
       case 'f':
       case 'F':
@@ -284,20 +294,14 @@ export class InputHandler {
         this.net.sendPlasma(me.dir);
         break;
 
-      // Tractor beam toggle (targets nearest enemy - simplified)
-      case 't':
-        this.net.sendTractor(true, 0); // target selected by server proximity
-        break;
-      case 'T':
-        this.net.sendTractor(false, 0);
+      // Tractor beam toggle
+      case 'r':
+        this.net.sendTractor(!(me.flags & PFTRACT), 0);
         break;
 
       // Repressor toggle
       case 'y':
-        this.net.sendRepress(true, 0);
-        break;
-      case 'Y':
-        this.net.sendRepress(false, 0);
+        this.net.sendRepress(!(me.flags & PFPRESS), 0);
         break;
 
       // War declaration: cycle through enemy teams
@@ -387,13 +391,20 @@ export class InputHandler {
   }
 
   private onMouseDown(e: MouseEvent, canvas: HTMLCanvasElement) {
-    if (this.state.phase !== 'alive') return;
     if (this.chatMode) return;
 
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
     const size = this.renderer.canvasSize;
+
+    // Outfit screen: click on team/ship boxes
+    if (this.state.phase === 'outfit' || this.state.phase === 'dead') {
+      this.handleOutfitClick(mx, my, size);
+      return;
+    }
+
+    if (this.state.phase !== 'alive') return;
 
     // Calculate direction from center of canvas
     const dx = mx - size / 2;
@@ -413,6 +424,56 @@ export class InputHandler {
       // Right click: fire torpedo
       this.net.sendTorp(dir);
       e.preventDefault();
+    }
+  }
+
+  private handleOutfitClick(mx: number, my: number, size: number) {
+    const teams = [
+      { flag: FED }, { flag: ROM }, { flag: KLI }, { flag: ORI },
+    ];
+    const ships = [SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, SGALAXY];
+
+    // Team box layout (must match renderer)
+    const gap = 12;
+    const teamPad = 10;
+    const boxW = Math.min(100, Math.floor((size - teamPad * 2 - (teams.length - 1) * gap) / teams.length));
+    const boxH = 60;
+    const totalW = teams.length * boxW + (teams.length - 1) * gap;
+    const startX = (size - totalW) / 2;
+    const teamY = 55;
+
+    // Check team box clicks
+    for (let i = 0; i < teams.length; i++) {
+      const x = startX + i * (boxW + gap);
+      if (mx >= x && mx <= x + boxW && my >= teamY && my <= teamY + boxH) {
+        const team = teams[i].flag;
+        if (this.state.teamMask & team) {
+          this.state.myTeam = team;
+          this.state.warningText = 'Ship: (s)cout (d)estroyer (c)ruiser (b)attleship (a)ssault (g)alaxy';
+          this.state.warningTime = Date.now();
+        }
+        return;
+      }
+    }
+
+    // Ship box layout (must match renderer)
+    if (!this.state.myTeam) return;
+    const shipGap = 6;
+    const shipPad = 10;
+    const shipW = Math.min(72, Math.floor((size - shipPad * 2 - (ships.length - 1) * shipGap) / ships.length));
+    const shipH = 120;
+    const totalShipW = ships.length * shipW + (ships.length - 1) * shipGap;
+    const shipStartX = (size - totalShipW) / 2;
+    const shipY = teamY + boxH + 45;
+
+    for (let i = 0; i < ships.length; i++) {
+      const x = shipStartX + i * (shipW + shipGap);
+      if (mx >= x && mx <= x + shipW && my >= shipY && my <= shipY + shipH) {
+        this.net.sendOutfit(this.state.myTeam, ships[i]);
+        this.state.warningText = 'Outfitting...';
+        this.state.warningTime = Date.now();
+        return;
+      }
     }
   }
 }

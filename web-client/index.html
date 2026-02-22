@@ -13,6 +13,8 @@
       overflow: hidden;
       width: 100vw;
       height: 100vh;
+      /* CRT phosphor glow on all text */
+      text-shadow: 0 0 4px currentColor;
     }
     #app {
       width: 100%;
@@ -24,13 +26,29 @@
     canvas {
       image-rendering: pixelated;
     }
+    #tactical-wrap {
+      position: relative;
+    }
     #status {
-      position: fixed;
-      top: 8px;
+      position: absolute;
+      bottom: 4px;
       left: 8px;
-      font-size: 12px;
+      font-size: 11px;
       color: #888;
       z-index: 100;
+    }
+
+    /* CRT scanlines overlay — covers entire app */
+    #app::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg, rgba(0,0,0,0.15) 0px, rgba(0,0,0,0.15) 1px,
+        transparent 1px, transparent 3px
+      );
+      pointer-events: none;
+      z-index: 1000;
     }
 
     /* 4-panel layout */
@@ -38,22 +56,14 @@
       display: flex;
       flex-direction: row;
       justify-content: center;
-      position: relative;
     }
-    /* CRT scanlines overlay */
-    #map-row::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: repeating-linear-gradient(
-        0deg, rgba(0,0,0,0.12) 0px, rgba(0,0,0,0.12) 1px,
-        transparent 1px, transparent 3px
-      );
-      pointer-events: none;
-      z-index: 10;
+    /* Divider between tactical and galactic */
+    #tactical {
+      border-right: 1px solid #333;
     }
+    /* Vignette on canvases */
     canvas {
-      box-shadow: inset 0 0 80px rgba(0,0,0,0.4);
+      box-shadow: inset 0 0 60px rgba(0,0,0,0.5);
     }
 
     #status-bar {
@@ -63,12 +73,11 @@
       padding: 0 8px;
       gap: 12px;
       background: #0a0a0a;
-      border-top: 1px solid #1a1a1a;
-      border-bottom: 1px solid #1a1a1a;
+      border-top: 1px solid #333;
+      border-bottom: 1px solid #333;
       font-size: 11px;
       font-family: monospace;
       color: #0f0;
-      text-shadow: 0 0 4px rgba(0, 255, 0, 0.4);
       overflow: hidden;
       flex-shrink: 0;
     }
@@ -125,10 +134,9 @@
       width: 50%;
       overflow-y: auto;
       background: #050505;
-      border-right: 1px solid #1a1a1a;
+      border-right: 1px solid #333;
       font-family: monospace;
       font-size: 11px;
-      text-shadow: 0 0 4px rgba(0, 255, 0, 0.4);
     }
     #player-list table {
       width: 100%;
@@ -157,7 +165,6 @@
       font-family: monospace;
       font-size: 11px;
       padding: 4px 8px;
-      text-shadow: 0 0 4px rgba(0, 255, 0, 0.4);
     }
     .msg-line {
       line-height: 1.4;
@@ -173,9 +180,11 @@
 </head>
 <body>
   <div id="app">
-    <div id="status">Connecting...</div>
     <div id="map-row">
-      <canvas id="tactical"></canvas>
+      <div id="tactical-wrap">
+        <canvas id="tactical"></canvas>
+        <div id="status">Connecting...</div>
+      </div>
       <canvas id="galactic"></canvas>
     </div>
     <div id="status-bar"></div>

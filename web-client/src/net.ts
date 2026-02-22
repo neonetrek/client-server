@@ -25,6 +25,7 @@ export class NetrekConnection {
   private wsUrl: string = '';
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private intentionalClose = false;
   readonly audio = new AudioEngine();
 
@@ -52,6 +53,7 @@ export class NetrekConnection {
       console.log('[net] Connected to server');
       this.state.connected = true;
       this.reconnectAttempts = 0;
+      this.startKeepalive();
       // Wait a tick to ensure WebSocket is ready, then send CP_SOCKET
       setTimeout(() => {
         console.log('[net] Sending CP_SOCKET version 4');
@@ -75,6 +77,7 @@ export class NetrekConnection {
     this.ws.onclose = () => {
       console.log('[net] Connection closed');
       this.state.connected = false;
+      this.stopKeepalive();
       this.onStateUpdate();
       if (!this.intentionalClose) {
         this.scheduleReconnect();
@@ -116,6 +119,7 @@ export class NetrekConnection {
 
   disconnect() {
     this.intentionalClose = true;
+    this.stopKeepalive();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -124,6 +128,23 @@ export class NetrekConnection {
       this.sendBye();
       this.ws.close();
       this.ws = null;
+    }
+  }
+
+  private startKeepalive() {
+    this.stopKeepalive();
+    // Send CP_UPDATES every 10s to prevent server ghostbusting
+    this.keepaliveTimer = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.sendUpdates(50000);
+      }
+    }, 10000);
+  }
+
+  private stopKeepalive() {
+    if (this.keepaliveTimer) {
+      clearInterval(this.keepaliveTimer);
+      this.keepaliveTimer = null;
     }
   }
 
