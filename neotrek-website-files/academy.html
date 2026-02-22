@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeoNetrek Academy - Learn to Play</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/academy.css">
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+
+<!-- Navigation -->
+<nav id="navbar">
+  <div class="nav-brand">
+    <span class="logo-icon">&#9733;</span>
+    <a href="index.html" class="logo-text" style="text-decoration:none;color:inherit">NeoNetrek</a>
+  </div>
+  <button class="nav-toggle" aria-label="Toggle navigation" onclick="document.getElementById('navbar').classList.toggle('open')">&#9776;</button>
+  <ul class="nav-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="#basics">Basics</a></li>
+    <li><a href="#combat">Combat</a></li>
+    <li><a href="#roles">Roles</a></li>
+    <li><a href="#scenarios">Scenarios</a></li>
+    <li><a href="#glossary">Glossary</a></li>
+    <li><a href="index.html#servers" class="btn-play">Play Now</a></li>
+  </ul>
+</nav>
+
+<!-- Hero -->
+<header class="hero academy-hero">
+  <div class="hero-content">
+    <h1>Academy</h1>
+    <p class="tagline">From Cadet to Admiral &mdash; Learn by Doing</p>
+    <p class="subtitle">Skip the manual. Learn Netrek through scenarios, tactics, and bite-sized lessons.</p>
+
+    <div class="skill-path">
+      <div class="path-node path-active" data-section="basics">
+        <div class="path-icon">01</div>
+        <span>Basics</span>
+      </div>
+      <div class="path-line"></div>
+      <div class="path-node" data-section="combat">
+        <div class="path-icon">02</div>
+        <span>Combat</span>
+      </div>
+      <div class="path-line"></div>
+      <div class="path-node" data-section="roles">
+        <div class="path-icon">03</div>
+        <span>Roles</span>
+      </div>
+      <div class="path-line"></div>
+      <div class="path-node" data-section="scenarios">
+        <div class="path-icon">04</div>
+        <span>Scenarios</span>
+      </div>
+      <div class="path-line"></div>
+      <div class="path-node" data-section="glossary">
+        <div class="path-icon">05</div>
+        <span>Mastery</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============================================================
+     CHAPTER 1: BASICS
+     ============================================================ -->
+<section id="basics" class="section">
+  <div class="container">
+    <div class="chapter-header">
+      <span class="chapter-num">01</span>
+      <h2 class="section-title">The Basics</h2>
+      <p class="section-intro">Everything you need to survive your first five minutes.</p>
+    </div>
+
+    <!-- 30-Second Pitch -->
+    <div class="pitch-box">
+      <h3>Netrek in 30 Seconds</h3>
+      <div class="pitch-grid">
+        <div class="pitch-item">
+          <div class="pitch-icon">
+            <svg viewBox="0 0 40 40" width="48" height="48"><circle cx="20" cy="20" r="6" fill="#4af"/><circle cx="20" cy="20" r="16" fill="none" stroke="#4af" stroke-width="1" stroke-dasharray="3"/></svg>
+          </div>
+          <p><strong>Fly a starship</strong> on a team of up to 8 players</p>
+        </div>
+        <div class="pitch-item">
+          <div class="pitch-icon">
+            <svg viewBox="0 0 40 40" width="48" height="48"><circle cx="14" cy="20" r="4" fill="#ff4"/><circle cx="26" cy="20" r="4" fill="#f44"/><line x1="18" y1="20" x2="22" y2="20" stroke="#fff" stroke-width="2"/></svg>
+          </div>
+          <p><strong>Dogfight enemies</strong> with torpedoes, phasers, and plasma</p>
+        </div>
+        <div class="pitch-item">
+          <div class="pitch-icon">
+            <svg viewBox="0 0 40 40" width="48" height="48"><circle cx="20" cy="20" r="8" fill="#333" stroke="#0f0" stroke-width="2"/><text x="20" y="24" text-anchor="middle" fill="#0f0" font-size="10" font-family="monospace">5</text></svg>
+          </div>
+          <p><strong>Conquer planets</strong> by bombing armies and dropping your own</p>
+        </div>
+        <div class="pitch-item">
+          <div class="pitch-icon">
+            <svg viewBox="0 0 40 40" width="48" height="48"><polygon points="20,4 36,36 4,36" fill="none" stroke="#fa0" stroke-width="2"/><text x="20" y="30" text-anchor="middle" fill="#fa0" font-size="14" font-family="monospace">!</text></svg>
+          </div>
+          <p><strong>Take all 10 enemy planets</strong> to achieve genocide and win</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Your Ship: Visual Dashboard -->
+    <div class="dashboard-lesson">
+      <h3>Your Ship at a Glance</h3>
+      <div class="dashboard-wrap">
+        <svg viewBox="0 0 500 300" class="ship-dashboard" role="img" aria-label="Ship systems diagram">
+          <!-- Ship body -->
+          <polygon points="250,40 300,120 340,100 310,160 340,240 250,200 160,240 190,160 160,100 200,120" fill="#1a1a3a" stroke="#4af" stroke-width="2"/>
+          <circle cx="250" cy="130" r="20" fill="none" stroke="#4af" stroke-width="1.5" stroke-dasharray="4"/>
+          <circle cx="250" cy="130" r="8" fill="#4af" opacity="0.5"/>
+
+          <!-- Shield bubble -->
+          <ellipse cx="250" cy="140" rx="80" ry="100" fill="none" stroke="#0f0" stroke-width="1.5" stroke-dasharray="6" opacity="0.5"/>
+          <text x="250" y="265" text-anchor="middle" fill="#0f0" font-size="11" font-family="monospace">SHIELDS</text>
+
+          <!-- Torpedoes -->
+          <circle cx="250" cy="30" r="3" fill="#ff4"/>
+          <circle cx="245" cy="22" r="3" fill="#ff4" opacity="0.7"/>
+          <circle cx="255" cy="22" r="3" fill="#ff4" opacity="0.7"/>
+          <line x1="120" y1="30" x2="240" y2="30" stroke="#555" stroke-width="1" stroke-dasharray="2"/>
+          <text x="115" y="34" text-anchor="end" fill="#ff4" font-size="11" font-family="monospace">TORPEDOES [t]</text>
+          <text x="115" y="48" text-anchor="end" fill="#888" font-size="9" font-family="monospace">8 shots, straight line</text>
+
+          <!-- Phasers -->
+          <line x1="270" y1="115" x2="400" y2="60" stroke="#f44" stroke-width="2" opacity="0.6"/>
+          <circle cx="400" cy="60" r="4" fill="#f44" opacity="0.5"/>
+          <text x="410" y="55" fill="#f44" font-size="11" font-family="monospace">PHASERS [p]</text>
+          <text x="410" y="69" fill="#888" font-size="9" font-family="monospace">Instant hit, auto-aim</text>
+
+          <!-- Fuel gauge -->
+          <rect x="30" y="100" width="16" height="100" fill="none" stroke="#0cf" stroke-width="1"/>
+          <rect x="32" y="130" width="12" height="68" fill="#0cf" opacity="0.6"/>
+          <text x="38" y="92" text-anchor="middle" fill="#0cf" font-size="10" font-family="monospace">FUEL</text>
+          <text x="38" y="215" text-anchor="middle" fill="#888" font-size="9" font-family="monospace">70%</text>
+
+          <!-- Speed -->
+          <text x="455" y="130" fill="#fa0" font-size="11" font-family="monospace">SPEED [0-9]</text>
+          <text x="455" y="146" fill="#fff" font-size="18" font-family="monospace">W6</text>
+          <text x="455" y="162" fill="#888" font-size="9" font-family="monospace">Higher = faster</text>
+          <text x="455" y="174" fill="#888" font-size="9" font-family="monospace">but harder to turn</text>
+
+          <!-- Cloak indicator -->
+          <text x="455" y="210" fill="#888" font-size="11" font-family="monospace">CLOAK [c]</text>
+          <text x="455" y="226" fill="#666" font-size="9" font-family="monospace">Invisible but</text>
+          <text x="455" y="238" fill="#666" font-size="9" font-family="monospace">burns fuel fast</text>
+
+          <!-- Tractor -->
+          <text x="30" y="250" fill="#c8f" font-size="11" font-family="monospace">TRACTOR [T]</text>
+          <text x="30" y="264" fill="#888" font-size="9" font-family="monospace">Pull enemy toward you</text>
+          <text x="30" y="280" fill="#c8f" font-size="11" font-family="monospace">PRESSOR [y]</text>
+          <text x="30" y="294" fill="#888" font-size="9" font-family="monospace">Push enemy away</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Speed / Turning: Visual Explainer -->
+    <div class="concept-card">
+      <h3>The Speed vs. Turning Tradeoff</h3>
+      <p class="concept-lead">Each warp level <strong>halves your turning speed</strong>. This is the single most important thing in Netrek.</p>
+      <div class="speed-visual">
+        <div class="speed-row">
+          <span class="speed-label">Warp 2</span>
+          <div class="turn-arc turn-wide">
+            <svg viewBox="0 0 100 60" width="120"><path d="M10,50 Q50,0 90,50" fill="none" stroke="#0f0" stroke-width="2"/><polygon points="85,45 90,50 82,50" fill="#0f0"/></svg>
+          </div>
+          <span class="speed-note">Tight turns, easy to dodge</span>
+        </div>
+        <div class="speed-row">
+          <span class="speed-label">Warp 6</span>
+          <div class="turn-arc turn-mid">
+            <svg viewBox="0 0 100 60" width="120"><path d="M10,50 Q50,20 90,50" fill="none" stroke="#ff4" stroke-width="2"/><polygon points="85,48 90,50 84,52" fill="#ff4"/></svg>
+          </div>
+          <span class="speed-note">Standard combat speed</span>
+        </div>
+        <div class="speed-row">
+          <span class="speed-label">Warp 9</span>
+          <div class="turn-arc turn-narrow">
+            <svg viewBox="0 0 100 60" width="120"><path d="M10,50 Q50,40 90,50" fill="none" stroke="#f44" stroke-width="2"/><polygon points="85,49 90,50 85,52" fill="#f44"/></svg>
+          </div>
+          <span class="speed-note">Almost no turning &mdash; use for travel only</span>
+        </div>
+      </div>
+      <div class="pro-tip">
+        <span class="tip-label">Pro Move</span>
+        Slam to warp 2 to make a sharp turn, then boost back to combat speed. Veterans do this constantly.
+      </div>
+    </div>
+
+    <!-- The Golden Rule -->
+    <div class="golden-rule">
+      <div class="rule-icon">
+        <svg viewBox="0 0 60 60" width="60"><circle cx="30" cy="30" r="28" fill="none" stroke="#fa0" stroke-width="2"/><text x="30" y="38" text-anchor="middle" fill="#fa0" font-size="28" font-family="monospace">#1</text></svg>
+      </div>
+      <div class="rule-text">
+        <h3>The Golden Rule of Netrek</h3>
+        <p><strong>Planets win games, not kills.</strong> A pilot who takes 3 planets is worth more than one who gets 20 kills. Everything &mdash; bombing, escorting, ogging, even dogfighting &mdash; serves the planet game.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     CHAPTER 2: COMBAT
+     ============================================================ -->
+<section id="combat" class="section section-alt">
+  <div class="container">
+    <div class="chapter-header">
+      <span class="chapter-num">02</span>
+      <h2 class="section-title">Combat</h2>
+      <p class="section-intro">Three weapons, two beams, one goal: don't die.</p>
+    </div>
+
+    <!-- Weapons Comparison -->
+    <div class="weapons-compare">
+      <div class="weapon-card weapon-torp">
+        <div class="weapon-header">
+          <svg viewBox="0 0 40 40" width="50" height="50">
+            <circle cx="20" cy="20" r="5" fill="#ff4"/><circle cx="20" cy="20" r="10" fill="none" stroke="#ff4" stroke-width="1" opacity="0.5"/>
+            <circle cx="20" cy="8" r="3" fill="#ff4" opacity="0.6"/><circle cx="20" cy="32" r="3" fill="#ff4" opacity="0.6"/>
+            <circle cx="8" cy="20" r="3" fill="#ff4" opacity="0.6"/><circle cx="32" cy="20" r="3" fill="#ff4" opacity="0.6"/>
+          </svg>
+          <h3>Torpedoes <kbd>t</kbd></h3>
+        </div>
+        <ul class="weapon-traits">
+          <li class="trait-pro">Your bread and butter &mdash; primary damage dealer</li>
+          <li class="trait-pro">Fire volleys of 8 toward cursor</li>
+          <li class="trait-pro">Splash damage in 350-unit radius</li>
+          <li class="trait-con">Unguided &mdash; travel in a straight line</li>
+          <li class="trait-con">Enemies can detonate them early</li>
+          <li class="trait-con">Miss if target changes direction</li>
+        </ul>
+        <div class="weapon-tip">Fire where the enemy <em>will be</em>, not where they are.</div>
+      </div>
+
+      <div class="weapon-card weapon-phaser">
+        <div class="weapon-header">
+          <svg viewBox="0 0 40 40" width="50" height="50">
+            <line x1="10" y1="30" x2="35" y2="8" stroke="#f44" stroke-width="3"/><circle cx="35" cy="8" r="4" fill="#f44" opacity="0.5"/>
+          </svg>
+          <h3>Phasers <kbd>p</kbd></h3>
+        </div>
+        <ul class="weapon-traits">
+          <li class="trait-pro">Instant hit &mdash; never misses</li>
+          <li class="trait-pro">Auto-targets nearest enemy to cursor</li>
+          <li class="trait-pro">Great for finishing damaged ships</li>
+          <li class="trait-con">Damage decreases with distance</li>
+          <li class="trait-con">Max range 6000 units</li>
+          <li class="trait-con">Less total damage than a torp volley</li>
+        </ul>
+        <div class="weapon-tip">Use phasers to finish off enemies after torp hits, not as primary damage.</div>
+      </div>
+
+      <div class="weapon-card weapon-plasma">
+        <div class="weapon-header">
+          <svg viewBox="0 0 40 40" width="50" height="50">
+            <circle cx="20" cy="20" r="10" fill="#f80" opacity="0.3"/><circle cx="20" cy="20" r="6" fill="#f80" opacity="0.5"/><circle cx="20" cy="20" r="3" fill="#ff4"/>
+          </svg>
+          <h3>Plasma <kbd>f</kbd></h3>
+        </div>
+        <ul class="weapon-traits">
+          <li class="trait-pro">Massive damage (100-150 depending on ship)</li>
+          <li class="trait-pro">Homes in on target</li>
+          <li class="trait-pro">Terrifying psychological weapon</li>
+          <li class="trait-con">Slow-moving &mdash; can be outrun</li>
+          <li class="trait-con">Can be detonated by phasers</li>
+          <li class="trait-con">Not available on all ships</li>
+        </ul>
+        <div class="weapon-tip">Fire plasma at close range for maximum effect. Pair with a tractor beam to prevent escape.</div>
+      </div>
+    </div>
+
+    <!-- Dogfighting: Do / Don't -->
+    <div class="do-dont">
+      <h3>Dogfighting Survival Guide</h3>
+      <p class="credit-line">Distilled from guides by Charlie, Lance, and generations of veteran pilots</p>
+      <div class="do-dont-grid">
+        <div class="do-column">
+          <h4 class="do-header">Do This</h4>
+          <div class="advice-item">
+            <span class="advice-icon do-icon">&#10003;</span>
+            <div>
+              <strong>Change speed constantly</strong>
+              <p>Vary between warp 3-8 unpredictably. Predictable speed = dead pilot.</p>
+            </div>
+          </div>
+          <div class="advice-item">
+            <span class="advice-icon do-icon">&#10003;</span>
+            <div>
+              <strong>Use tractors aggressively</strong>
+              <p>Tractor an enemy, fire a torp spread, then release. This is the #1 dogfighting technique.</p>
+            </div>
+          </div>
+          <div class="advice-item">
+            <span class="advice-icon do-icon">&#10003;</span>
+            <div>
+              <strong>Det incoming torpedoes</strong>
+              <p>Press <kbd>d</kbd> to detonate enemy torps near you. Burns fuel but saves your life.</p>
+            </div>
+          </div>
+          <div class="advice-item">
+            <span class="advice-icon do-icon">&#10003;</span>
+            <div>
+              <strong>Keep shields up in combat</strong>
+              <p>Shields absorb damage. Only lower them briefly for repair.</p>
+            </div>
+          </div>
+          <div class="advice-item">
+            <span class="advice-icon do-icon">&#10003;</span>
+            <div>
+              <strong>Fight near friendly planets</strong>
+              <p>You can orbit for repairs and fuel. The enemy can't.</p>
+            </div>
+          </div>
+        </div>
+        <div class="dont-column">
+          <h4 class="dont-header">Don't Do This</h4>
+          <div class="advice-item">
+            <span class="advice-icon dont-icon">&#10007;</span>
+            <div>
+              <strong>Don't fly in straight lines</strong>
+              <p>A straight-line course is a torpedo magnet. Weave constantly.</p>
+            </div>
+          </div>
+          <div class="advice-item">
+            <span class="advice-icon dont-icon">&#10007;</span>
+            <div>
+              <strong>Don't cloak while dogfighting</strong>
+              <p>Cloaking burns fuel, disables weapons, and experienced players can track you anyway. Save it for planet runs.</p>
+            </div>
+          </div>
+          <div class="advice-item">
+            <span class="advice-icon dont-icon">&#10007;</span>
+            <div>
+              <strong>Don't chase enemies deep</strong>
+              <p>Chasing into enemy space means fighting near their planets. They repair, you don't.</p>
+            </div>
+          </div>
+          <div class="advice-item">
+            <span class="advice-icon dont-icon">&#10007;</span>
+            <div>
+              <strong>Don't ignore the galactic map</strong>
+              <p>Check it constantly. A surprise carrier at your back is worse than losing a dogfight.</p>
+            </div>
+          </div>
+          <div class="advice-item">
+            <span class="advice-icon dont-icon">&#10007;</span>
+            <div>
+              <strong>Don't waste fuel on long-range phasers</strong>
+              <p>Phasers at max range do almost no damage. Close the distance first.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tractor/Pressor: Visual Diagram -->
+    <div class="concept-card">
+      <h3>The Tractor-Torp Combo</h3>
+      <p class="concept-lead">The most important technique in Netrek. Master this and you'll win most 1v1 fights.</p>
+      <div class="combo-steps">
+        <div class="combo-step">
+          <div class="step-num">1</div>
+          <div class="step-diagram">
+            <svg viewBox="0 0 120 80" width="140">
+              <polygon points="60,15 65,25 60,22 55,25" fill="#ff4"/>
+              <polygon points="60,65 65,55 60,58 55,55" fill="#f44"/>
+              <text x="60" y="10" text-anchor="middle" fill="#ff4" font-size="8" font-family="monospace">YOU</text>
+              <text x="60" y="78" text-anchor="middle" fill="#f44" font-size="8" font-family="monospace">ENEMY</text>
+              <line x1="60" y1="26" x2="60" y2="54" stroke="#c8f" stroke-width="1.5" stroke-dasharray="4"/>
+              <text x="80" y="42" fill="#c8f" font-size="8" font-family="monospace">TRACTOR</text>
+            </svg>
+          </div>
+          <p>Lock tractor beam on the enemy. They start getting pulled toward you.</p>
+        </div>
+        <div class="combo-step">
+          <div class="step-num">2</div>
+          <div class="step-diagram">
+            <svg viewBox="0 0 120 80" width="140">
+              <polygon points="60,15 65,25 60,22 55,25" fill="#ff4"/>
+              <polygon points="60,50 65,40 60,43 55,40" fill="#f44"/>
+              <circle cx="55" cy="30" r="2" fill="#ff4"/><circle cx="60" cy="28" r="2" fill="#ff4"/><circle cx="65" cy="30" r="2" fill="#ff4"/>
+              <circle cx="52" cy="32" r="2" fill="#ff4" opacity="0.7"/><circle cx="68" cy="32" r="2" fill="#ff4" opacity="0.7"/>
+              <text x="80" y="32" fill="#ff4" font-size="8" font-family="monospace">TORPS!</text>
+            </svg>
+          </div>
+          <p>Fire torpedo spread directly at them. They're being pulled into the volley.</p>
+        </div>
+        <div class="combo-step">
+          <div class="step-num">3</div>
+          <div class="step-diagram">
+            <svg viewBox="0 0 120 80" width="140">
+              <polygon points="60,15 65,25 60,22 55,25" fill="#ff4"/>
+              <circle cx="60" cy="45" r="10" fill="#f80" opacity="0.4"/><circle cx="60" cy="45" r="5" fill="#ff4" opacity="0.6"/>
+              <text x="85" y="48" fill="#f80" font-size="8" font-family="monospace">BOOM</text>
+            </svg>
+          </div>
+          <p>Multiple torps connect. Enemy shields shattered. Follow up with phasers.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     CHAPTER 3: ROLES
+     ============================================================ -->
+<section id="roles" class="section">
+  <div class="container">
+    <div class="chapter-header">
+      <span class="chapter-num">03</span>
+      <h2 class="section-title">Team Roles</h2>
+      <p class="section-intro">Netrek is a team game. Every player has a job. Here are the five battlefield roles.</p>
+    </div>
+
+    <div class="roles-grid">
+      <!-- Carrier -->
+      <div class="role-card" onclick="this.classList.toggle('expanded')">
+        <div class="role-header">
+          <div class="role-icon role-carrier">
+            <svg viewBox="0 0 40 40" width="50"><rect x="12" y="8" width="16" height="24" rx="3" fill="#c8f" stroke="#c8f" stroke-width="1"/><circle cx="20" cy="26" r="4" fill="#fff" opacity="0.4"/><text x="20" y="18" text-anchor="middle" fill="#fff" font-size="8" font-family="monospace">10</text></svg>
+          </div>
+          <div>
+            <h3>Carrier</h3>
+            <p class="role-subtitle">The most important player on the team</p>
+          </div>
+          <span class="expand-hint">tap to expand</span>
+        </div>
+        <div class="role-body">
+          <p>The carrier picks up armies from friendly planets and drops them on enemy planets. <strong>This is how you win.</strong> Everything else on the team exists to support the carrier or stop the enemy carrier.</p>
+          <div class="role-requirements">
+            <h4>Requirements</h4>
+            <ul>
+              <li>Need at least <strong>2 kills</strong> to pick up armies (each kill = 2 army capacity)</li>
+              <li>Friendly planet must have <strong>5+ armies</strong></li>
+              <li>Best ships: Assault (20 army capacity), Cruiser (10), Galaxy (10)</li>
+            </ul>
+          </div>
+          <div class="role-how">
+            <h4>How to Carry</h4>
+            <ol>
+              <li>Get kills in combat (2 minimum, more is better)</li>
+              <li>Fly to a friendly planet with 5+ armies</li>
+              <li>Orbit (<kbd>o</kbd>) and beam up (<kbd>z</kbd>)</li>
+              <li>Cloak (<kbd>c</kbd>) and fly to the target planet</li>
+              <li>Orbit and beam down (<kbd>x</kbd>) to conquer</li>
+            </ol>
+          </div>
+          <div class="pro-tip">
+            <span class="tip-label">Pro Move</span>
+            Don't announce you're carrying. The enemy watches team messages. Cloak and go silent.
+          </div>
+        </div>
+      </div>
+
+      <!-- Escort -->
+      <div class="role-card" onclick="this.classList.toggle('expanded')">
+        <div class="role-header">
+          <div class="role-icon role-escort">
+            <svg viewBox="0 0 40 40" width="50"><polygon points="20,8 28,20 24,20 24,32 16,32 16,20 12,20" fill="#4f4"/><polygon points="10,14 14,20 10,18" fill="#4f4" opacity="0.5"/><polygon points="30,14 26,20 30,18" fill="#4f4" opacity="0.5"/></svg>
+          </div>
+          <div>
+            <h3>Escort</h3>
+            <p class="role-subtitle">Clear the path for the carrier</p>
+          </div>
+          <span class="expand-hint">tap to expand</span>
+        </div>
+        <div class="role-body">
+          <p>The escort flies ahead of or alongside the carrier, engaging any enemies that threaten the army drop. A good escort makes planet-taking possible; without one, carriers die.</p>
+          <div class="role-requirements">
+            <h4>Key Principles</h4>
+            <ul>
+              <li>Stay <strong>between the carrier and the enemy</strong></li>
+              <li>Engage anyone who heads toward the carrier</li>
+              <li>Don't chase kills &mdash; your job is protection, not glory</li>
+              <li>Best ships: Destroyer (fast, good weapons), Cruiser</li>
+            </ul>
+          </div>
+          <div class="pro-tip">
+            <span class="tip-label">Pro Move</span>
+            Use your pressor beam to shove enemies away from the carrier. Even if you can't kill them, keeping them at distance saves the drop.
+          </div>
+        </div>
+      </div>
+
+      <!-- Ogger -->
+      <div class="role-card" onclick="this.classList.toggle('expanded')">
+        <div class="role-header">
+          <div class="role-icon role-ogger">
+            <svg viewBox="0 0 40 40" width="50"><polygon points="20,6 26,16 34,12 28,22 32,34 20,28 8,34 12,22 6,12 14,16" fill="#f44"/><circle cx="20" cy="20" r="4" fill="#ff4" opacity="0.6"/></svg>
+          </div>
+          <div>
+            <h3>Ogger</h3>
+            <p class="role-subtitle">Kill the enemy carrier at any cost</p>
+          </div>
+          <span class="expand-hint">tap to expand</span>
+        </div>
+        <div class="role-body">
+          <p>The ogger's job is simple and brutal: find the enemy carrier and <strong>destroy it before it drops armies</strong>. This is often a suicide mission. Trading your ship for a carrier full of armies is one of the best trades in Netrek.</p>
+          <div class="role-requirements">
+            <h4>Ogging Technique</h4>
+            <ol>
+              <li>Watch the galactic map for enemy ships heading toward your planets</li>
+              <li>Intercept at max warp &mdash; head-on approach</li>
+              <li>Fire everything: torps, phasers, plasma</li>
+              <li>Use tractor to prevent escape</li>
+              <li>Dying is acceptable if the carrier dies too</li>
+            </ol>
+          </div>
+          <div class="role-how">
+            <h4>History</h4>
+            <p>The term "ogging" comes from Terence Chang, an early Netrek server admin who logged in as robot slot "Og" and pioneered the suicide-attack strategy. Before Og, nobody deliberately suicided. It changed the game forever.</p>
+          </div>
+          <div class="pro-tip">
+            <span class="tip-label">Pro Move</span>
+            A Destroyer at warp 10 closing head-on gives the carrier about 2 seconds to react. That's not enough time.
+          </div>
+        </div>
+      </div>
+
+      <!-- Bomber -->
+      <div class="role-card" onclick="this.classList.toggle('expanded')">
+        <div class="role-header">
+          <div class="role-icon role-bomber">
+            <svg viewBox="0 0 40 40" width="50"><polygon points="20,6 26,14 34,14 28,20 30,28 20,24 10,28 12,20 6,14 14,14" fill="#4af"/><circle cx="20" cy="32" r="4" fill="#333" stroke="#f44" stroke-width="1.5"/><line x1="20" y1="24" x2="20" y2="28" stroke="#f44" stroke-width="1" stroke-dasharray="2"/></svg>
+          </div>
+          <div>
+            <h3>Bomber</h3>
+            <p class="role-subtitle">Destroy enemy armies on planets</p>
+          </div>
+          <span class="expand-hint">tap to expand</span>
+        </div>
+        <div class="role-body">
+          <p>Before planets can be taken, their armies must be eliminated. Bombers orbit enemy planets and destroy armies, preparing targets for carriers. This is often done with Scouts for their speed.</p>
+          <div class="role-requirements">
+            <h4>Bombing Mechanics</h4>
+            <ul>
+              <li>Planet must have <strong>5+ armies</strong> to bomb</li>
+              <li>Orbit the planet (<kbd>o</kbd>) then bomb (<kbd>b</kbd>)</li>
+              <li>Each bomb tick kills ~4 armies</li>
+              <li>Stop when planet has 4 or fewer &mdash; carrier finishes the job</li>
+              <li>Best ships: Scout (fastest, gets in and out), Assault</li>
+            </ul>
+          </div>
+          <div class="pro-tip">
+            <span class="tip-label">Pro Move</span>
+            Deep-bomb behind enemy lines with a Scout. Bomb a planet, run when chased, circle back to bomb another. Keep the enemy reacting to you.
+          </div>
+        </div>
+      </div>
+
+      <!-- Base Pilot -->
+      <div class="role-card" onclick="this.classList.toggle('expanded')">
+        <div class="role-header">
+          <div class="role-icon role-base">
+            <svg viewBox="0 0 40 40" width="50"><circle cx="20" cy="20" r="14" fill="none" stroke="#fa0" stroke-width="2"/><circle cx="20" cy="20" r="8" fill="#fa0" opacity="0.3"/><rect x="6" y="18" width="28" height="4" fill="#fa0" opacity="0.5"/><rect x="18" y="6" width="4" height="28" fill="#fa0" opacity="0.5"/></svg>
+          </div>
+          <div>
+            <h3>Starbase Pilot</h3>
+            <p class="role-subtitle">The team's fortress &mdash; repair, refuel, defend</p>
+          </div>
+          <span class="expand-hint">tap to expand</span>
+        </div>
+        <div class="role-body">
+          <p>The Starbase is a massive, nearly immobile station with enormous shields and firepower. Allies dock to repair and refuel. Losing your starbase is devastating &mdash; 30-minute rebuild timer. Requires Commander rank.</p>
+          <div class="role-requirements">
+            <h4>Starbase Operations</h4>
+            <ul>
+              <li>Park near the front lines but not in enemy territory</li>
+              <li>Teammates dock with you to repair/refuel (4 docking bays)</li>
+              <li>You carry 25 armies &mdash; can be a mobile army source</li>
+              <li>Devastating plasma (150 damage) and phaser (120 damage) at close range</li>
+            </ul>
+          </div>
+          <div class="pro-tip">
+            <span class="tip-label">Pro Move</span>
+            If you're being ogged, call for help immediately (<kbd>F1</kbd> distress). Even one escort can save a starbase. Don't try to be a hero alone.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Team Flow Diagram -->
+    <div class="flow-diagram">
+      <h3>How a Planet Take Works</h3>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="flow-num">1</div>
+          <div class="flow-label">Bomber</div>
+          <p>Bombs enemy planet down to 4 armies</p>
+        </div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-step">
+          <div class="flow-num">2</div>
+          <div class="flow-label">Carrier</div>
+          <p>Picks up armies, cloaks, heads to target</p>
+        </div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-step">
+          <div class="flow-num">3</div>
+          <div class="flow-label">Escort</div>
+          <p>Clears defenders around target planet</p>
+        </div>
+        <div class="flow-arrow">&#8594;</div>
+        <div class="flow-step">
+          <div class="flow-num">4</div>
+          <div class="flow-label">Drop!</div>
+          <p>Carrier orbits, beams down armies &mdash; planet taken!</p>
+        </div>
+      </div>
+      <p class="flow-note">Meanwhile, oggers hunt the <em>enemy</em> carrier trying to do the same thing to your planets.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     CHAPTER 4: TACTICAL SCENARIOS
+     ============================================================ -->
+<section id="scenarios" class="section section-alt">
+  <div class="container">
+    <div class="chapter-header">
+      <span class="chapter-num">04</span>
+      <h2 class="section-title">Tactical Scenarios</h2>
+      <p class="section-intro">What would you do? Test your Netrek IQ with these real game situations.</p>
+    </div>
+
+    <div class="scenarios-list">
+      <!-- Scenario 1 -->
+      <div class="scenario-card" onclick="this.classList.toggle('revealed')">
+        <div class="scenario-question">
+          <span class="scenario-badge">Situation</span>
+          <h3>You have 6 kills and full fuel. Two enemy planets nearby are bombed to 4 armies each. An enemy Destroyer is patrolling between them. What do you do?</h3>
+          <p class="scenario-hint">Think about it, then tap to reveal the answer</p>
+        </div>
+        <div class="scenario-answer">
+          <span class="scenario-badge answer-badge">Best Play</span>
+          <p><strong>Pick up 12 armies and take both planets.</strong> With 6 kills you can carry 12 armies in a CA. Beam up, cloak, take the farther planet first (while you're at full strength), then take the closer one on your way back. The DD will struggle to catch a cloaked CA that keeps moving. Two planets in one run is a massive swing.</p>
+        </div>
+      </div>
+
+      <!-- Scenario 2 -->
+      <div class="scenario-card" onclick="this.classList.toggle('revealed')">
+        <div class="scenario-question">
+          <span class="scenario-badge">Situation</span>
+          <h3>You're in a Scout and see an enemy Assault Ship heading toward your space carrying armies. It has an escort. You're alone. What do you do?</h3>
+          <p class="scenario-hint">Think about it, then tap to reveal the answer</p>
+        </div>
+        <div class="scenario-answer">
+          <span class="scenario-badge answer-badge">Best Play</span>
+          <p><strong>Ogg the carrier, ignore the escort.</strong> Fly straight at the Assault Ship at max warp. Fire everything. Use tractor to hold it. Even if you die, killing a loaded Assault Ship (potentially 20 armies) is worth 10 of your Scouts. The escort can't save it if you close fast enough. Call for help with <kbd>E</kbd> distress so teammates know to converge.</p>
+        </div>
+      </div>
+
+      <!-- Scenario 3 -->
+      <div class="scenario-card" onclick="this.classList.toggle('revealed')">
+        <div class="scenario-question">
+          <span class="scenario-badge">Situation</span>
+          <h3>Your team's Starbase is being attacked by 3 enemies. You're in a CA nearby with 4 kills and 8 armies. The starbase pilot is calling for help. What do you do?</h3>
+          <p class="scenario-hint">Think about it, then tap to reveal the answer</p>
+        </div>
+        <div class="scenario-answer">
+          <span class="scenario-badge answer-badge">Best Play</span>
+          <p><strong>Drop your armies first, then help.</strong> Your 8 armies are more valuable than the starbase fight. Beam them down at the nearest friendly planet (takes 10 seconds). Then go help the starbase. If you die fighting with armies, your team loses both the armies AND the starbase. Never risk armies in combat you can avoid.</p>
+        </div>
+      </div>
+
+      <!-- Scenario 4 -->
+      <div class="scenario-card" onclick="this.classList.toggle('revealed')">
+        <div class="scenario-question">
+          <span class="scenario-badge">Situation</span>
+          <h3>You're dogfighting a Battleship 1v1 in your Destroyer. You're both at half shields. The BB fires a plasma torpedo at you. What do you do?</h3>
+          <p class="scenario-hint">Think about it, then tap to reveal the answer</p>
+        </div>
+        <div class="scenario-answer">
+          <span class="scenario-badge answer-badge">Best Play</span>
+          <p><strong>Phaser the plasma, then disengage.</strong> Phasering a plasma torpedo destroys it before it hits you. A BB plasma does 130 damage &mdash; enough to kill you at half shields. After killing the plasma, you've won the exchange. A half-health DD vs. a half-health BB is a losing fight because the BB's weapons and shields are much stronger. Warp out, repair, re-engage on your terms.</p>
+        </div>
+      </div>
+
+      <!-- Scenario 5 -->
+      <div class="scenario-card" onclick="this.classList.toggle('revealed')">
+        <div class="scenario-question">
+          <span class="scenario-badge">Situation</span>
+          <h3>It's early game. Both teams have all their planets with full armies. No planets are bombed yet. You're in a CA. What should you be doing?</h3>
+          <p class="scenario-hint">Think about it, then tap to reveal the answer</p>
+        </div>
+        <div class="scenario-answer">
+          <span class="scenario-badge answer-badge">Best Play</span>
+          <p><strong>Bomb.</strong> Early game is all about army attrition. Refit to a Scout and bomb enemy planets. Don't waste time dogfighting in the middle of the map &mdash; those kills are meaningless until planets are bombed and ready to take. The team that gets bombing done first gains initiative. Every minute spent dogfighting aimlessly is a minute the enemy might be bombing your planets.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CHAPTER 5: GLOSSARY & MASTERY
+     ============================================================ -->
+<section id="glossary" class="section">
+  <div class="container">
+    <div class="chapter-header">
+      <span class="chapter-num">05</span>
+      <h2 class="section-title">Netrek Glossary</h2>
+      <p class="section-intro">The language of Netrek. Tap any term to learn more.</p>
+    </div>
+
+    <div class="glossary-grid">
+      <div class="gloss-item" onclick="this.classList.toggle('open')">
+        <dt>Ogg <span class="gloss-expand">+</span></dt>
+        <dd>To suicide-attack an important target (usually a carrier or starbase). Named after Terence Chang's robot character "Og." Trading your ship to kill a loaded carrier is almost always worth it. The most feared word in Netrek chat.</dd>
+      </div>
+      <div class="gloss-item" onclick="this.classList.toggle('open')">
+        <dt>Scum / Scumming <span class="gloss-expand">+</span></dt>
+        <dd>To take planets. Not derogatory &mdash; it's the core objective of the game. "Scum" can be a noun (a planet-taker) or a verb. A good scummer is worth their weight in gold.</dd>
+      </div>
+      <div class="gloss-item" onclick="this.classList.toggle('open')">
+        <dt>Genocide (Geno) <span class="gloss-expand">+</span></dt>
+        <dd>Taking all 10 of an enemy team's planets, eliminating them from the game. This is the ultimate victory condition. The eliminated team's surviving players must join another team.</dd>
+      </div>
+      <div class="gloss-item" onclick="this.classList.toggle('open')">
+        <dt>T-Mode <span class="gloss-expand">+</span></dt>
+        <dd>Tournament Mode. Activated when enough players are online (usually 5v5, 2 teams). Only stats earned in T-Mode count toward rank. This is "real" Netrek.</dd>
+      </div>
+      <div class="gloss-item" onclick="this.classList.toggle('open')">
+        <dt>Clue <span class="gloss-expand">+</span></dt>
+        <dd>Skill and game awareness. "Having clue" means understanding tactics, team play, and the planet game. "Getting clue" is the long process of becoming a competent player. A "clue guide" teaches strategy.</dd>
+      </div>
+      <div class="gloss-item" onclick="this.classList.toggle('open')">
+        <dt>Armies <span class="gloss-expand">+</span></dt>
+        <dd>Ground forces stationed on planets. The currency of conquest. Planets generate armies over time. You pick them up to take enemy planets. Losing a carrier full of armies is a catastrophe.</dd>
+      </div>
+      <div class="gloss-item" onclick="this.classList.toggle('open')">
+        <dt>Det <span class="gloss-expand">+</span></dt>
+        <dd>To detonate torpedoes. Press <kbd>d</kbd> to det enemy torps near you (defensive), or <kbd>D</kbd> to det your own torps (to damage cloaked ships). Detting is a key survival skill.</dd>
+      </div>
+      <div class="gloss-item" onclick="this.classList.toggle('open')">
+        <dt>Doosh <span class="gloss-expand">+</span></dt>
+        <dd>The satisfying sound/feeling of landing a full torpedo volley on an enemy. "I dooshed him" = multiple torps connected for massive damage.</dd>
+      </div>
+      <div class="gloss-item" onclick="this.classList.toggle('open')">
+        <dt>Refit <span class="gloss-expand">+</span></dt>
+        <dd>Changing your ship type at a friendly planet. Orbit a planet with repair facilities and press <kbd>r</kbd> then the ship letter. Useful for switching between combat and bombing roles.</dd>
+      </div>
+      <div class="gloss-item" onclick="this.classList.toggle('open')">
+        <dt>LPS <span class="gloss-expand">+</span></dt>
+        <dd>Last Planet Standing. The desperate defense of your team's final planet to avoid genocide. Some of the most intense moments in Netrek happen during LPS defense.</dd>
+      </div>
+      <div class="gloss-item" onclick="this.classList.toggle('open')">
+        <dt>INL <span class="gloss-expand">+</span></dt>
+        <dd>International Netrek League. The competitive league format with organized teams, captains, drafts, and formal matches. Where the best players compete.</dd>
+      </div>
+      <div class="gloss-item" onclick="this.classList.toggle('open')">
+        <dt>Bronco <span class="gloss-expand">+</span></dt>
+        <dd>The standard game mode in Netrek. 4 teams, 40 planets, classic rules. The most commonly played format and the one you should learn first.</dd>
+      </div>
+    </div>
+
+    <!-- Credits -->
+    <div class="credits-section">
+      <h3>Standing on the Shoulders of Giants</h3>
+      <p>The tactical knowledge in this guide was distilled from decades of community wisdom. The NeoNetrek Academy honors the original authors whose guides taught generations of pilots:</p>
+      <div class="credits-grid">
+        <div class="credit">
+          <strong>Kevin Smith</strong>
+          <span>Creator of Xtrek (1988)</span>
+        </div>
+        <div class="credit">
+          <strong>Terence Chang &amp; Scott Silvey</strong>
+          <span>Creators of Netrek (1989)</span>
+        </div>
+        <div class="credit">
+          <strong>Charlie</strong>
+          <span>Beginner's Guide to Dogfighting</span>
+        </div>
+        <div class="credit">
+          <strong>Grey Elf</strong>
+          <span>Guide to Planet Taking</span>
+        </div>
+        <div class="credit">
+          <strong>Lance</strong>
+          <span>Lance's Dogfight Guide</span>
+        </div>
+        <div class="credit">
+          <strong>Jan "KIA" Sandorf</strong>
+          <span>KIA's Clue Guide</span>
+        </div>
+        <div class="credit">
+          <strong>mifiq</strong>
+          <span>Team Strategy Guide &amp; Ogging 101</span>
+        </div>
+        <div class="credit">
+          <strong>The Netrek Community</strong>
+          <span>35+ years of open-source development</span>
+        </div>
+      </div>
+      <p class="credits-note">Original guides available at <a href="https://www.netrek.org/clueguides/" target="_blank" rel="noopener">netrek.org/clueguides</a> and <a href="https://www.netrek.org/beginner/" target="_blank" rel="noopener">netrek.org/beginner</a></p>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="section section-play">
+  <div class="container">
+    <div class="play-cta">
+      <h2>Time to Fly</h2>
+      <p>The best way to learn is to play. Jump in, make mistakes, and get clue.</p>
+      <a href="index.html#servers" class="btn btn-primary btn-large" id="play-link">Launch NeoNetrek</a>
+      <p class="play-note">Practice against robots first, then join a real game when you're ready.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-bottom">
+      <p>NeoNetrek Academy &copy; 2024&ndash;2026 &bull; <a href="index.html">Main Site</a> &bull; <a href="index.html#ships">Ships</a> &bull; <a href="index.html#leaderboard">Leaderboard</a></p>
+      <p class="footer-heritage">Tactical knowledge sourced from the Netrek community's 35+ years of guides and gameplay.</p>
+    </div>
+  </div>
+</footer>
+
+<script src="config.js"></script>
+<script src="js/main.js"></script>
+<script src="js/academy.js"></script>
+</body>
+</html>

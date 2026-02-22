@@ -1,0 +1,867 @@
+/* ==========================================================================
+   NeoNetrek Academy - Interactive Training Guide Styles
+   ========================================================================== */
+
+/* ---------- Academy Hero ---------- */
+.academy-hero {
+  min-height: 80vh;
+}
+
+.skill-path {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-top: 2.5rem;
+  flex-wrap: wrap;
+}
+
+.path-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.2s;
+}
+
+.path-node:hover { transform: translateY(-3px); }
+
+.path-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  transition: all 0.3s;
+}
+
+.path-active .path-icon {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  box-shadow: 0 0 15px rgba(255,204,0,0.3);
+}
+
+.path-node span {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.path-line {
+  width: 40px;
+  height: 2px;
+  background: var(--border-color);
+  margin-bottom: 1.4rem;
+}
+
+/* ---------- Chapter Headers ---------- */
+.chapter-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.chapter-num {
+  font-family: var(--font-mono);
+  font-size: 3rem;
+  font-weight: bold;
+  color: var(--accent-gold);
+  opacity: 0.2;
+  display: block;
+  line-height: 1;
+  margin-bottom: -0.5rem;
+}
+
+/* ---------- 30-Second Pitch ---------- */
+.pitch-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 3rem;
+}
+
+.pitch-box h3 {
+  font-family: var(--font-mono);
+  color: var(--accent-gold);
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-size: 1.2rem;
+}
+
+.pitch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.pitch-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+}
+
+.pitch-item p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.pitch-item strong {
+  color: var(--text-heading);
+}
+
+/* ---------- Ship Dashboard ---------- */
+.dashboard-lesson {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 3rem;
+}
+
+.dashboard-lesson h3 {
+  font-family: var(--font-mono);
+  color: var(--text-heading);
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.dashboard-wrap {
+  text-align: center;
+  overflow-x: auto;
+}
+
+.ship-dashboard {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ---------- Speed/Turning Visual ---------- */
+.concept-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 3rem;
+}
+
+.concept-card h3 {
+  font-family: var(--font-mono);
+  color: var(--text-heading);
+  margin-bottom: 0.5rem;
+}
+
+.concept-lead {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  font-size: 1rem;
+}
+
+.concept-lead strong {
+  color: var(--accent-gold);
+}
+
+.speed-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.speed-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.2);
+}
+
+.speed-label {
+  font-family: var(--font-mono);
+  color: var(--text-heading);
+  font-size: 0.9rem;
+  min-width: 65px;
+}
+
+.speed-note {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  flex: 1;
+}
+
+/* ---------- Pro Tip Box ---------- */
+.pro-tip {
+  background: rgba(255,204,0,0.06);
+  border-left: 3px solid var(--accent-gold);
+  border-radius: 0 8px 8px 0;
+  padding: 0.8rem 1rem;
+  margin-top: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.tip-label {
+  display: inline-block;
+  background: rgba(255,204,0,0.15);
+  color: var(--accent-gold);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 3px;
+  margin-right: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ---------- Golden Rule ---------- */
+.golden-rule {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  background: linear-gradient(135deg, rgba(255,170,0,0.08), rgba(255,204,0,0.04));
+  border: 2px solid rgba(255,170,0,0.3);
+  border-radius: 12px;
+  padding: 2rem;
+}
+
+.golden-rule .rule-text h3 {
+  font-family: var(--font-mono);
+  color: var(--accent-gold);
+  margin-bottom: 0.5rem;
+}
+
+.golden-rule .rule-text p {
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.golden-rule .rule-text strong {
+  color: var(--text-heading);
+  font-size: 1.1rem;
+}
+
+/* ---------- Weapons Comparison ---------- */
+.weapons-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.weapon-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: transform 0.3s, border-color 0.3s;
+}
+
+.weapon-card:hover {
+  transform: translateY(-3px);
+}
+
+.weapon-torp { border-color: rgba(255,255,68,0.3); }
+.weapon-torp:hover { border-color: rgba(255,255,68,0.6); }
+.weapon-phaser { border-color: rgba(255,68,68,0.3); }
+.weapon-phaser:hover { border-color: rgba(255,68,68,0.6); }
+.weapon-plasma { border-color: rgba(255,136,0,0.3); }
+.weapon-plasma:hover { border-color: rgba(255,136,0,0.6); }
+
+.weapon-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.weapon-header h3 {
+  font-family: var(--font-mono);
+  color: var(--text-heading);
+  font-size: 1.1rem;
+}
+
+.weapon-traits {
+  list-style: none;
+  margin-bottom: 1rem;
+}
+
+.weapon-traits li {
+  padding: 0.3rem 0 0.3rem 1.5rem;
+  position: relative;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.trait-pro::before {
+  content: '+';
+  position: absolute;
+  left: 0;
+  color: var(--team-kli);
+  font-family: var(--font-mono);
+  font-weight: bold;
+}
+
+.trait-con::before {
+  content: '-';
+  position: absolute;
+  left: 0.15rem;
+  color: var(--team-rom);
+  font-family: var(--font-mono);
+  font-weight: bold;
+}
+
+.weapon-tip {
+  background: rgba(255,255,255,0.03);
+  border-radius: 6px;
+  padding: 0.7rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-style: italic;
+  border-left: 2px solid var(--accent-blue);
+}
+
+/* ---------- Do / Don't Grid ---------- */
+.do-dont {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 3rem;
+}
+
+.do-dont > h3 {
+  font-family: var(--font-mono);
+  color: var(--text-heading);
+  text-align: center;
+  margin-bottom: 0.3rem;
+}
+
+.credit-line {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-style: italic;
+  margin-bottom: 2rem;
+}
+
+.do-dont-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+@media (max-width: 768px) {
+  .do-dont-grid { grid-template-columns: 1fr; }
+}
+
+.do-header, .dont-header {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid;
+}
+
+.do-header { color: var(--team-kli); border-color: var(--team-kli); }
+.dont-header { color: var(--team-rom); border-color: var(--team-rom); }
+
+.advice-item {
+  display: flex;
+  gap: 0.8rem;
+  margin-bottom: 1.2rem;
+  align-items: flex-start;
+}
+
+.advice-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+  margin-top: 0.1rem;
+}
+
+.do-icon { color: var(--team-kli); }
+.dont-icon { color: var(--team-rom); }
+
+.advice-item strong {
+  color: var(--text-heading);
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.9rem;
+}
+
+.advice-item p {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* ---------- Tractor Combo Steps ---------- */
+.combo-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.combo-step {
+  text-align: center;
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.step-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.step-diagram {
+  margin: 0.5rem 0;
+}
+
+.combo-step p {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* ---------- Roles ---------- */
+.roles-grid {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 3rem;
+}
+
+.role-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.role-card:hover {
+  border-color: var(--accent-blue);
+}
+
+.role-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.2rem 1.5rem;
+}
+
+.role-header h3 {
+  font-family: var(--font-mono);
+  color: var(--text-heading);
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.role-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin: 0.2rem 0 0;
+}
+
+.expand-hint {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  opacity: 0.5;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.role-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease, padding 0.3s ease;
+  padding: 0 1.5rem;
+}
+
+.role-card.expanded .role-body {
+  max-height: 600px;
+  padding: 0 1.5rem 1.5rem;
+}
+
+.role-card.expanded .expand-hint { opacity: 0; }
+
+.role-card.expanded {
+  border-color: var(--accent-gold);
+}
+
+.role-body > p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+}
+
+.role-body strong {
+  color: var(--text-heading);
+}
+
+.role-requirements, .role-how {
+  margin-bottom: 1rem;
+}
+
+.role-requirements h4, .role-how h4 {
+  font-family: var(--font-mono);
+  color: var(--accent-blue);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.role-requirements ul, .role-requirements ol,
+.role-how ul, .role-how ol {
+  padding-left: 1.5rem;
+}
+
+.role-requirements li, .role-how li, .role-how p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
+}
+
+/* Role icon colors */
+.role-carrier svg { filter: drop-shadow(0 0 6px rgba(200,136,255,0.4)); }
+.role-escort svg { filter: drop-shadow(0 0 6px rgba(68,255,68,0.4)); }
+.role-ogger svg { filter: drop-shadow(0 0 6px rgba(255,68,68,0.4)); }
+.role-bomber svg { filter: drop-shadow(0 0 6px rgba(68,170,255,0.4)); }
+.role-base svg { filter: drop-shadow(0 0 6px rgba(255,170,0,0.4)); }
+
+/* ---------- Flow Diagram ---------- */
+.flow-diagram {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2rem;
+}
+
+.flow-diagram h3 {
+  font-family: var(--font-mono);
+  color: var(--text-heading);
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.flow-steps {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.flow-step {
+  text-align: center;
+  flex: 0 1 150px;
+}
+
+.flow-num {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent-gold);
+  color: #000;
+  font-family: var(--font-mono);
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.flow-label {
+  font-family: var(--font-mono);
+  color: var(--text-heading);
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
+}
+
+.flow-step p {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.flow-arrow {
+  color: var(--accent-gold);
+  font-size: 1.5rem;
+  margin-top: 0.5rem;
+  flex-shrink: 0;
+}
+
+.flow-note {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-top: 1.5rem;
+  font-style: italic;
+}
+
+/* ---------- Scenarios ---------- */
+.scenarios-list {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.scenario-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.scenario-card:hover {
+  border-color: var(--accent-blue);
+}
+
+.scenario-question {
+  padding: 1.5rem;
+}
+
+.scenario-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 0.2rem 0.6rem;
+  border-radius: 3px;
+  background: rgba(68,136,255,0.15);
+  color: var(--accent-blue);
+  margin-bottom: 0.8rem;
+}
+
+.answer-badge {
+  background: rgba(0,255,0,0.1);
+  color: var(--team-kli);
+}
+
+.scenario-question h3 {
+  font-family: var(--font-sans);
+  font-weight: normal;
+  font-size: 1rem;
+  color: var(--text-heading);
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+}
+
+.scenario-hint {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  opacity: 0.6;
+}
+
+.scenario-answer {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease, padding 0.3s ease;
+  padding: 0 1.5rem;
+  background: rgba(0,255,0,0.02);
+  border-top: 1px solid transparent;
+}
+
+.scenario-card.revealed .scenario-answer {
+  max-height: 300px;
+  padding: 1.5rem;
+  border-top: 1px solid rgba(0,255,0,0.15);
+}
+
+.scenario-card.revealed .scenario-hint { display: none; }
+
+.scenario-card.revealed {
+  border-color: rgba(0,255,0,0.3);
+}
+
+.scenario-answer p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.scenario-answer strong {
+  color: var(--text-heading);
+}
+
+/* ---------- Glossary ---------- */
+.glossary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 0.8rem;
+  margin-bottom: 3rem;
+}
+
+.gloss-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.gloss-item:hover {
+  border-color: var(--accent-blue);
+}
+
+.gloss-item dt {
+  padding: 0.8rem 1rem;
+  font-family: var(--font-mono);
+  color: var(--accent-gold);
+  font-size: 0.95rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.gloss-expand {
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  transition: transform 0.2s;
+}
+
+.gloss-item.open .gloss-expand {
+  transform: rotate(45deg);
+}
+
+.gloss-item dd {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.2s ease;
+  padding: 0 1rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.gloss-item.open dd {
+  max-height: 200px;
+  padding: 0 1rem 1rem;
+}
+
+.gloss-item.open {
+  border-color: var(--accent-gold);
+}
+
+/* ---------- Credits ---------- */
+.credits-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.credits-section h3 {
+  font-family: var(--font-mono);
+  color: var(--accent-gold);
+  margin-bottom: 0.8rem;
+}
+
+.credits-section > p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.credits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.credit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.8rem;
+  background: rgba(0,0,0,0.2);
+  border-radius: 6px;
+}
+
+.credit strong {
+  color: var(--text-heading);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.credit span {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.credits-note {
+  font-size: 0.85rem;
+}
+
+.credits-note a {
+  color: var(--accent-blue);
+}
+
+.credits-note a:hover {
+  color: var(--accent-gold);
+}
+
+/* ---------- Responsive Fixes ---------- */
+@media (max-width: 768px) {
+  .golden-rule {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .flow-steps {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .flow-arrow {
+    transform: rotate(90deg);
+    margin: 0;
+  }
+
+  .skill-path { gap: 0; }
+  .path-line { width: 20px; }
+
+  .combo-steps { grid-template-columns: 1fr; }
+
+  .glossary-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .weapons-compare { grid-template-columns: 1fr; }
+  .speed-row { flex-direction: column; gap: 0.5rem; text-align: center; }
+}

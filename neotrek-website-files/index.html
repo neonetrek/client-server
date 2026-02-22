@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeoNetrek - The Internet's First Team Game, Reborn</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- Starfield background -->
+<canvas id="starfield"></canvas>
+
+<!-- Navigation -->
+<nav id="navbar">
+  <div class="nav-brand">
+    <span class="logo-icon">&#9733;</span>
+    <span class="logo-text">NeoNetrek</span>
+  </div>
+  <button class="nav-toggle" aria-label="Toggle navigation" onclick="document.getElementById('navbar').classList.toggle('open')">&#9776;</button>
+  <ul class="nav-links">
+    <li><a href="#home">Home</a></li>
+    <li><a href="#about">About</a></li>
+    <li><a href="academy.html">Academy</a></li>
+    <li><a href="#ships">Ships</a></li>
+    <li><a href="#teams">Teams</a></li>
+    <li><a href="#ranks">Ranks</a></li>
+    <li><a href="#history">History</a></li>
+    <li><a href="#servers">Servers</a></li>
+    <li><a href="#servers" class="btn-play">Play Now</a></li>
+  </ul>
+</nav>
+
+<!-- Hero Section -->
+<header id="home" class="hero">
+  <div class="hero-content">
+    <div class="hero-ships" aria-hidden="true">
+      <svg class="hero-ship ship-fed" viewBox="0 0 40 40" width="80" height="80">
+        <polygon points="20,2 26,14 38,14 28,22 32,36 20,28 8,36 12,22 2,14 14,14" fill="#ffff00" opacity="0.7"/>
+      </svg>
+      <svg class="hero-ship ship-rom" viewBox="0 0 40 40" width="70" height="70">
+        <polygon points="20,4 36,36 20,28 4,36" fill="#ff0000" opacity="0.7"/>
+      </svg>
+      <svg class="hero-ship ship-kli" viewBox="0 0 40 40" width="75" height="75">
+        <polygon points="20,2 30,16 38,8 34,24 38,38 20,30 2,38 6,24 2,8 10,16" fill="#00ff00" opacity="0.7"/>
+      </svg>
+      <svg class="hero-ship ship-ori" viewBox="0 0 40 40" width="65" height="65">
+        <polygon points="20,4 28,18 36,4 32,22 36,36 20,30 4,36 8,22 4,4 12,18" fill="#00ccff" opacity="0.7"/>
+      </svg>
+    </div>
+    <h1>NeoNetrek</h1>
+    <p class="tagline">The Internet's First Multiplayer Team Game &mdash; Reborn for the Modern Web</p>
+    <p class="subtitle">Command starships, conquer planets, and battle across the galaxy in real-time with players worldwide.</p>
+    <div class="hero-buttons">
+      <a href="#servers" class="btn btn-primary">Play Now</a>
+      <a href="academy.html" class="btn btn-secondary">Learn to Play</a>
+    </div>
+  </div>
+</header>
+
+<!-- About Section -->
+<section id="about" class="section">
+  <div class="container">
+    <h2 class="section-title">About NeoNetrek</h2>
+    <div class="about-grid">
+      <div class="about-card">
+        <div class="card-icon">&#9733;</div>
+        <h3>Real-Time Strategy</h3>
+        <p>Command your starship in a persistent galaxy where every decision matters. Coordinate with teammates to conquer enemy planets, defend your homeworlds, and achieve galactic domination.</p>
+      </div>
+      <div class="about-card">
+        <div class="card-icon">&#9876;</div>
+        <h3>Team-Based Combat</h3>
+        <p>Four empires vie for control: the Federation, Romulan Empire, Klingon Empire, and Orion Syndicate. Choose your side and fight as part of a 16-player team in 4-way galactic warfare.</p>
+      </div>
+      <div class="about-card">
+        <div class="card-icon">&#9992;</div>
+        <h3>7 Unique Ship Classes</h3>
+        <p>From the swift Scout to the mighty Starbase, each ship class brings unique capabilities. Master torpedoes, phasers, tractors, cloaking, and plasma weapons to dominate the battlefield.</p>
+      </div>
+      <div class="about-card">
+        <div class="card-icon">&#127760;</div>
+        <h3>Browser-Based</h3>
+        <p>NeoNetrek runs entirely in your browser via WebSocket. No downloads, no plugins, no installs. Connect and play instantly from any modern device.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Player Guide -->
+<section id="guide" class="section section-alt">
+  <div class="container">
+    <h2 class="section-title">Player Guide</h2>
+
+    <div class="guide-toc">
+      <h3>Quick Start</h3>
+      <ol>
+        <li>Connect to a server and choose your team</li>
+        <li>Select a ship class (Cruiser is recommended for beginners)</li>
+        <li>Navigate with the mouse &mdash; your ship follows the cursor</li>
+        <li>Fire torpedoes with <kbd>t</kbd>, phasers with <kbd>p</kbd></li>
+        <li>Raise shields with <kbd>s</kbd>, cloak with <kbd>c</kbd></li>
+        <li>Orbit a planet with <kbd>o</kbd>, bomb with <kbd>b</kbd></li>
+        <li>Beam up armies with <kbd>z</kbd>, beam down with <kbd>x</kbd></li>
+        <li>Toggle galactic map with <kbd>Tab</kbd></li>
+      </ol>
+    </div>
+
+    <div class="guide-sections">
+      <div class="guide-block">
+        <h3>Combat Mechanics</h3>
+        <p>Netrek features two primary weapons: <strong>torpedoes</strong> and <strong>phasers</strong>. Torpedoes are unguided projectiles that travel in a straight line &mdash; you fire volleys of up to 8 at a time. They deal splash damage within 350 units. Phasers are instant-hit beams with 6,000 unit range that always hit their target but deal less damage at distance.</p>
+        <p>Advanced ships also carry <strong>plasma torpedoes</strong>: slow, powerful homing projectiles that can devastate an enemy. Destroyers, Cruisers, Battleships, Galaxys, and Starbases all carry plasma.</p>
+        <p><strong>Tractor and pressor beams</strong> let you pull enemies into your torpedo spreads or push them away. These are key tactical tools in dogfighting.</p>
+      </div>
+
+      <div class="guide-block">
+        <h3>The Planet Game</h3>
+        <p>Winning in Netrek is about <strong>taking planets</strong>, not just getting kills. The core gameplay loop is:</p>
+        <ol>
+          <li><strong>Bomb</strong> enemy planets to eliminate their armies</li>
+          <li><strong>Pick up</strong> armies from your own planets (you need kills first!)</li>
+          <li><strong>Carry</strong> armies to enemy planets and <strong>beam them down</strong></li>
+          <li>Take all 10 enemy planets to achieve <strong>genocide</strong></li>
+        </ol>
+        <p>You need at least <strong>2 kills</strong> to pick up armies. Each kill lets you carry more. Armies are the currency of conquest &mdash; protect your carriers!</p>
+      </div>
+
+      <div class="guide-block">
+        <h3>Tournament Mode (T-Mode)</h3>
+        <p>When enough players are online (typically 5 per team, 2 teams), the server enters <strong>Tournament Mode</strong>. Only stats earned in T-Mode count toward your rank and ratings. T-Mode is where the real Netrek happens &mdash; coordinated team play, strategic bombing runs, organized defense, and tense planet takes.</p>
+      </div>
+
+      <div class="guide-block">
+        <h3>Key Bindings</h3>
+        <div class="keybind-grid">
+          <div class="keybind"><kbd>t</kbd> <span>Fire torpedo</span></div>
+          <div class="keybind"><kbd>p</kbd> <span>Fire phaser</span></div>
+          <div class="keybind"><kbd>f</kbd> <span>Fire plasma</span></div>
+          <div class="keybind"><kbd>s</kbd> <span>Toggle shields</span></div>
+          <div class="keybind"><kbd>c</kbd> <span>Toggle cloak</span></div>
+          <div class="keybind"><kbd>R</kbd> <span>Repair</span></div>
+          <div class="keybind"><kbd>o</kbd> <span>Orbit planet</span></div>
+          <div class="keybind"><kbd>b</kbd> <span>Bomb planet</span></div>
+          <div class="keybind"><kbd>z</kbd> <span>Beam up armies</span></div>
+          <div class="keybind"><kbd>x</kbd> <span>Beam down armies</span></div>
+          <div class="keybind"><kbd>d</kbd> <span>Detonate enemy torps</span></div>
+          <div class="keybind"><kbd>D</kbd> <span>Detonate own torps</span></div>
+          <div class="keybind"><kbd>T</kbd> <span>Tractor beam</span></div>
+          <div class="keybind"><kbd>y</kbd> <span>Pressor beam</span></div>
+          <div class="keybind"><kbd>Tab</kbd> <span>Toggle galactic map</span></div>
+          <div class="keybind"><kbd>0-9</kbd> <span>Set speed</span></div>
+        </div>
+      </div>
+
+      <div class="guide-block">
+        <h3>Tips for New Players</h3>
+        <ul>
+          <li><strong>Stay with your team.</strong> Lone wolves die fast. Coordinate attacks and defense.</li>
+          <li><strong>Don't fly in straight lines.</strong> Vary your speed and direction to dodge torpedoes.</li>
+          <li><strong>Watch your fuel and temperature.</strong> Overheating weapons or running dry leaves you helpless.</li>
+          <li><strong>Protect army carriers.</strong> An escort carrying 10 armies is worth more than 10 kills.</li>
+          <li><strong>Use the galactic map.</strong> Situational awareness wins games. Know where enemies and armies are.</li>
+          <li><strong>Learn to "ogg".</strong> Suicide attacks on key targets (starbases, carriers) is a legitimate and vital tactic.</li>
+          <li><strong>Dock at your starbase</strong> for fast repair and refueling.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Ships Section -->
+<section id="ships" class="section">
+  <div class="container">
+    <h2 class="section-title">Ship Classes</h2>
+    <p class="section-intro">Each ship class has unique strengths. Choose the right tool for the job.</p>
+
+    <div class="ships-grid">
+      <!-- Scout -->
+      <div class="ship-card">
+        <div class="ship-visual">
+          <svg viewBox="0 0 60 60" width="100" height="100">
+            <polygon points="30,8 38,22 50,28 38,34 34,50 30,38 26,50 22,34 10,28 22,22" fill="#4af" stroke="#4af" stroke-width="1"/>
+            <circle cx="30" cy="28" r="4" fill="#fff" opacity="0.6"/>
+          </svg>
+        </div>
+        <h3>Scout <span class="ship-code">SC</span></h3>
+        <p class="ship-desc">The fastest ship in the fleet. Scouts excel at reconnaissance, planet bombing runs, and quick escapes. Fragile but nimble.</p>
+        <div class="ship-stats">
+          <div class="stat"><span class="stat-label">Speed</span><div class="stat-bar"><div class="stat-fill" style="width:100%"></div></div><span class="stat-val">12</span></div>
+          <div class="stat"><span class="stat-label">Shields</span><div class="stat-bar"><div class="stat-fill" style="width:15%"></div></div><span class="stat-val">75</span></div>
+          <div class="stat"><span class="stat-label">Hull</span><div class="stat-bar"><div class="stat-fill" style="width:12.5%"></div></div><span class="stat-val">75</span></div>
+          <div class="stat"><span class="stat-label">Fuel</span><div class="stat-bar"><div class="stat-fill" style="width:8.3%"></div></div><span class="stat-val">5000</span></div>
+          <div class="stat"><span class="stat-label">Armies</span><div class="stat-bar"><div class="stat-fill" style="width:8%"></div></div><span class="stat-val">2</span></div>
+        </div>
+        <div class="ship-weapons">Torpedoes (25 dmg) &bull; Phasers (75 dmg)</div>
+      </div>
+
+      <!-- Destroyer -->
+      <div class="ship-card">
+        <div class="ship-visual">
+          <svg viewBox="0 0 60 60" width="100" height="100">
+            <polygon points="30,6 40,20 52,18 42,30 50,46 30,38 10,46 18,30 8,18 20,20" fill="#4f4" stroke="#4f4" stroke-width="1"/>
+            <circle cx="30" cy="26" r="5" fill="#fff" opacity="0.6"/>
+          </svg>
+        </div>
+        <h3>Destroyer <span class="ship-code">DD</span></h3>
+        <p class="ship-desc">A fast, versatile warship. Good balance of speed and firepower. Carries plasma torpedoes and is excellent for dogfighting and ogging.</p>
+        <div class="ship-stats">
+          <div class="stat"><span class="stat-label">Speed</span><div class="stat-bar"><div class="stat-fill" style="width:83%"></div></div><span class="stat-val">10</span></div>
+          <div class="stat"><span class="stat-label">Shields</span><div class="stat-bar"><div class="stat-fill" style="width:17%"></div></div><span class="stat-val">85</span></div>
+          <div class="stat"><span class="stat-label">Hull</span><div class="stat-bar"><div class="stat-fill" style="width:14.2%"></div></div><span class="stat-val">85</span></div>
+          <div class="stat"><span class="stat-label">Fuel</span><div class="stat-bar"><div class="stat-fill" style="width:11.7%"></div></div><span class="stat-val">7000</span></div>
+          <div class="stat"><span class="stat-label">Armies</span><div class="stat-bar"><div class="stat-fill" style="width:20%"></div></div><span class="stat-val">5</span></div>
+        </div>
+        <div class="ship-weapons">Torpedoes (30 dmg) &bull; Phasers (85 dmg) &bull; Plasma (75 dmg)</div>
+      </div>
+
+      <!-- Cruiser -->
+      <div class="ship-card ship-card-highlight">
+        <div class="ship-visual">
+          <svg viewBox="0 0 60 60" width="100" height="100">
+            <polygon points="30,4 42,18 54,14 46,30 54,48 30,40 6,48 14,30 6,14 18,18" fill="#ff4" stroke="#ff4" stroke-width="1"/>
+            <circle cx="30" cy="26" r="6" fill="#fff" opacity="0.6"/>
+          </svg>
+        </div>
+        <h3>Cruiser <span class="ship-code">CA</span> <span class="recommended">Recommended</span></h3>
+        <p class="ship-desc">The iconic Netrek workhorse. Well-rounded in every category. The default ship for a reason &mdash; learn the game in a CA before specializing.</p>
+        <div class="ship-stats">
+          <div class="stat"><span class="stat-label">Speed</span><div class="stat-bar"><div class="stat-fill" style="width:75%"></div></div><span class="stat-val">9</span></div>
+          <div class="stat"><span class="stat-label">Shields</span><div class="stat-bar"><div class="stat-fill" style="width:20%"></div></div><span class="stat-val">100</span></div>
+          <div class="stat"><span class="stat-label">Hull</span><div class="stat-bar"><div class="stat-fill" style="width:16.7%"></div></div><span class="stat-val">100</span></div>
+          <div class="stat"><span class="stat-label">Fuel</span><div class="stat-bar"><div class="stat-fill" style="width:16.7%"></div></div><span class="stat-val">10000</span></div>
+          <div class="stat"><span class="stat-label">Armies</span><div class="stat-bar"><div class="stat-fill" style="width:40%"></div></div><span class="stat-val">10</span></div>
+        </div>
+        <div class="ship-weapons">Torpedoes (40 dmg) &bull; Phasers (100 dmg) &bull; Plasma (100 dmg)</div>
+      </div>
+
+      <!-- Battleship -->
+      <div class="ship-card">
+        <div class="ship-visual">
+          <svg viewBox="0 0 60 60" width="100" height="100">
+            <polygon points="30,4 44,16 56,10 50,28 56,48 30,40 4,48 10,28 4,10 16,16" fill="#f84" stroke="#f84" stroke-width="1"/>
+            <circle cx="30" cy="24" r="7" fill="#fff" opacity="0.6"/>
+            <circle cx="30" cy="24" r="3" fill="#f84" opacity="0.8"/>
+          </svg>
+        </div>
+        <h3>Battleship <span class="ship-code">BB</span></h3>
+        <p class="ship-desc">Heavy capital ship with devastating plasma and thick armor. Slow to turn but lethal in a brawl. The king of sustained combat.</p>
+        <div class="ship-stats">
+          <div class="stat"><span class="stat-label">Speed</span><div class="stat-bar"><div class="stat-fill" style="width:67%"></div></div><span class="stat-val">8</span></div>
+          <div class="stat"><span class="stat-label">Shields</span><div class="stat-bar"><div class="stat-fill" style="width:26%"></div></div><span class="stat-val">130</span></div>
+          <div class="stat"><span class="stat-label">Hull</span><div class="stat-bar"><div class="stat-fill" style="width:21.7%"></div></div><span class="stat-val">130</span></div>
+          <div class="stat"><span class="stat-label">Fuel</span><div class="stat-bar"><div class="stat-fill" style="width:23.3%"></div></div><span class="stat-val">14000</span></div>
+          <div class="stat"><span class="stat-label">Armies</span><div class="stat-bar"><div class="stat-fill" style="width:24%"></div></div><span class="stat-val">6</span></div>
+        </div>
+        <div class="ship-weapons">Torpedoes (40 dmg) &bull; Phasers (105 dmg) &bull; Plasma (130 dmg)</div>
+      </div>
+
+      <!-- Assault -->
+      <div class="ship-card">
+        <div class="ship-visual">
+          <svg viewBox="0 0 60 60" width="100" height="100">
+            <rect x="14" y="12" width="32" height="36" rx="4" fill="#c8f" stroke="#c8f" stroke-width="1"/>
+            <rect x="20" y="18" width="20" height="8" fill="#fff" opacity="0.4"/>
+            <circle cx="30" cy="36" r="5" fill="#fff" opacity="0.5"/>
+          </svg>
+        </div>
+        <h3>Assault <span class="ship-code">AS</span></h3>
+        <p class="ship-desc">The troop transport. Carries a massive 20 armies with the thickest hull in the fleet. Slow and lightly armed, but essential for conquering planets.</p>
+        <div class="ship-stats">
+          <div class="stat"><span class="stat-label">Speed</span><div class="stat-bar"><div class="stat-fill" style="width:67%"></div></div><span class="stat-val">8</span></div>
+          <div class="stat"><span class="stat-label">Shields</span><div class="stat-bar"><div class="stat-fill" style="width:16%"></div></div><span class="stat-val">80</span></div>
+          <div class="stat"><span class="stat-label">Hull</span><div class="stat-bar"><div class="stat-fill" style="width:33.3%"></div></div><span class="stat-val">200</span></div>
+          <div class="stat"><span class="stat-label">Fuel</span><div class="stat-bar"><div class="stat-fill" style="width:10%"></div></div><span class="stat-val">6000</span></div>
+          <div class="stat"><span class="stat-label">Armies</span><div class="stat-bar"><div class="stat-fill" style="width:80%"></div></div><span class="stat-val">20</span></div>
+        </div>
+        <div class="ship-weapons">Torpedoes (30 dmg) &bull; Phasers (80 dmg)</div>
+      </div>
+
+      <!-- Starbase -->
+      <div class="ship-card">
+        <div class="ship-visual">
+          <svg viewBox="0 0 60 60" width="100" height="100">
+            <circle cx="30" cy="30" r="20" fill="none" stroke="#fa0" stroke-width="2"/>
+            <circle cx="30" cy="30" r="12" fill="#fa0" opacity="0.4"/>
+            <rect x="8" y="28" width="44" height="4" fill="#fa0" opacity="0.7"/>
+            <rect x="28" y="8" width="4" height="44" fill="#fa0" opacity="0.7"/>
+            <circle cx="30" cy="30" r="5" fill="#fff" opacity="0.7"/>
+          </svg>
+        </div>
+        <h3>Starbase <span class="ship-code">SB</span></h3>
+        <p class="ship-desc">The team's fortress. Massive shields, fuel reserves, and firepower. Allies dock here to repair and refuel. Requires Commander rank. 30-minute rebuild if destroyed.</p>
+        <div class="ship-stats">
+          <div class="stat"><span class="stat-label">Speed</span><div class="stat-bar"><div class="stat-fill" style="width:17%"></div></div><span class="stat-val">2</span></div>
+          <div class="stat"><span class="stat-label">Shields</span><div class="stat-bar"><div class="stat-fill" style="width:100%"></div></div><span class="stat-val">500</span></div>
+          <div class="stat"><span class="stat-label">Hull</span><div class="stat-bar"><div class="stat-fill" style="width:100%"></div></div><span class="stat-val">600</span></div>
+          <div class="stat"><span class="stat-label">Fuel</span><div class="stat-bar"><div class="stat-fill" style="width:100%"></div></div><span class="stat-val">60000</span></div>
+          <div class="stat"><span class="stat-label">Armies</span><div class="stat-bar"><div class="stat-fill" style="width:100%"></div></div><span class="stat-val">25</span></div>
+        </div>
+        <div class="ship-weapons">Torpedoes (30 dmg) &bull; Phasers (120 dmg) &bull; Plasma (150 dmg) &bull; 4 Docking Bays</div>
+      </div>
+
+      <!-- Galaxy -->
+      <div class="ship-card">
+        <div class="ship-visual">
+          <svg viewBox="0 0 60 60" width="100" height="100">
+            <ellipse cx="30" cy="30" rx="22" ry="12" fill="none" stroke="#8cf" stroke-width="1.5"/>
+            <polygon points="30,6 38,22 50,20 40,30 48,46 30,38 12,46 20,30 10,20 22,22" fill="#8cf" stroke="#8cf" stroke-width="1"/>
+            <circle cx="30" cy="28" r="5" fill="#fff" opacity="0.6"/>
+          </svg>
+        </div>
+        <h3>Galaxy <span class="ship-code">GA</span></h3>
+        <p class="ship-desc">An enhanced cruiser variant. Slightly better shields and fuel than the standard CA, with comparable speed and armament. A solid all-rounder.</p>
+        <div class="ship-stats">
+          <div class="stat"><span class="stat-label">Speed</span><div class="stat-bar"><div class="stat-fill" style="width:75%"></div></div><span class="stat-val">9</span></div>
+          <div class="stat"><span class="stat-label">Shields</span><div class="stat-bar"><div class="stat-fill" style="width:20%"></div></div><span class="stat-val">100</span></div>
+          <div class="stat"><span class="stat-label">Hull</span><div class="stat-bar"><div class="stat-fill" style="width:16.7%"></div></div><span class="stat-val">100</span></div>
+          <div class="stat"><span class="stat-label">Fuel</span><div class="stat-bar"><div class="stat-fill" style="width:20%"></div></div><span class="stat-val">12000</span></div>
+          <div class="stat"><span class="stat-label">Armies</span><div class="stat-bar"><div class="stat-fill" style="width:40%"></div></div><span class="stat-val">10</span></div>
+        </div>
+        <div class="ship-weapons">Torpedoes (40 dmg) &bull; Phasers (100 dmg) &bull; Plasma (100 dmg)</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Teams Section -->
+<section id="teams" class="section section-alt">
+  <div class="container">
+    <h2 class="section-title">The Four Empires</h2>
+    <p class="section-intro">Choose your allegiance. Each empire controls 10 planets in their home quadrant of the galaxy.</p>
+
+    <div class="teams-grid">
+      <div class="team-card team-fed">
+        <div class="team-emblem">
+          <svg viewBox="0 0 80 80" width="120" height="120">
+            <circle cx="40" cy="40" r="35" fill="none" stroke="#ffff00" stroke-width="2"/>
+            <polygon points="40,10 46,30 66,30 50,42 56,62 40,50 24,62 30,42 14,30 34,30" fill="#ffff00" opacity="0.8"/>
+          </svg>
+        </div>
+        <h3>Federation</h3>
+        <p class="team-letter">F</p>
+        <p>The stalwart defenders of order and diplomacy. Federation pilots are known for their disciplined tactics and strong team coordination. Home quadrant: <strong>upper-left</strong>.</p>
+      </div>
+
+      <div class="team-card team-rom">
+        <div class="team-emblem">
+          <svg viewBox="0 0 80 80" width="120" height="120">
+            <circle cx="40" cy="40" r="35" fill="none" stroke="#ff0000" stroke-width="2"/>
+            <polygon points="40,12 60,65 40,50 20,65" fill="#ff0000" opacity="0.8"/>
+            <line x1="40" y1="12" x2="40" y2="50" stroke="#ff0000" stroke-width="2"/>
+          </svg>
+        </div>
+        <h3>Romulan Empire</h3>
+        <p class="team-letter">R</p>
+        <p>Masters of stealth and deception. Romulan captains favor cloaked attacks and ambush tactics. Their cunning makes them formidable opponents. Home quadrant: <strong>upper-right</strong>.</p>
+      </div>
+
+      <div class="team-card team-kli">
+        <div class="team-emblem">
+          <svg viewBox="0 0 80 80" width="120" height="120">
+            <circle cx="40" cy="40" r="35" fill="none" stroke="#00ff00" stroke-width="2"/>
+            <polygon points="40,10 55,30 70,20 60,45 65,70 40,55 15,70 20,45 10,20 25,30" fill="#00ff00" opacity="0.8"/>
+          </svg>
+        </div>
+        <h3>Klingon Empire</h3>
+        <p class="team-letter">K</p>
+        <p>Warriors who live for the glory of battle. Klingon players tend to be aggressive and relentless. Expect all-out assaults and fearless ogging. Home quadrant: <strong>lower-left</strong>.</p>
+      </div>
+
+      <div class="team-card team-ori">
+        <div class="team-emblem">
+          <svg viewBox="0 0 80 80" width="120" height="120">
+            <circle cx="40" cy="40" r="35" fill="none" stroke="#00ccff" stroke-width="2"/>
+            <polygon points="40,12 50,28 68,20 55,40 68,60 50,52 40,68 30,52 12,60 25,40 12,20 30,28" fill="#00ccff" opacity="0.8"/>
+          </svg>
+        </div>
+        <h3>Orion Syndicate</h3>
+        <p class="team-letter">O</p>
+        <p>Pirates and merchants united under a single banner. Orion pilots are unpredictable and resourceful, using unconventional strategies to gain the upper hand. Home quadrant: <strong>lower-right</strong>.</p>
+      </div>
+    </div>
+
+    <div class="galaxy-map">
+      <h3>Galaxy Layout</h3>
+      <div class="map-visual">
+        <svg viewBox="0 0 400 400" width="400" height="400" class="galaxy-svg">
+          <!-- Grid -->
+          <line x1="200" y1="0" x2="200" y2="400" stroke="#333" stroke-width="1" stroke-dasharray="4"/>
+          <line x1="0" y1="200" x2="400" y2="200" stroke="#333" stroke-width="1" stroke-dasharray="4"/>
+          <!-- Quadrant labels -->
+          <text x="100" y="100" text-anchor="middle" fill="#ffff00" font-size="16" font-family="monospace">FED</text>
+          <text x="300" y="100" text-anchor="middle" fill="#ff0000" font-size="16" font-family="monospace">ROM</text>
+          <text x="100" y="300" text-anchor="middle" fill="#00ff00" font-size="16" font-family="monospace">KLI</text>
+          <text x="300" y="300" text-anchor="middle" fill="#00ccff" font-size="16" font-family="monospace">ORI</text>
+          <!-- Planets (10 per team, scattered in quadrants) -->
+          <circle cx="60" cy="50" r="5" fill="#ffff00" opacity="0.7"/><circle cx="140" cy="70" r="5" fill="#ffff00" opacity="0.7"/>
+          <circle cx="80" cy="120" r="5" fill="#ffff00" opacity="0.7"/><circle cx="150" cy="150" r="5" fill="#ffff00" opacity="0.7"/>
+          <circle cx="50" cy="170" r="5" fill="#ffff00" opacity="0.7"/><circle cx="120" cy="40" r="5" fill="#ffff00" opacity="0.7"/>
+          <circle cx="170" cy="90" r="5" fill="#ffff00" opacity="0.7"/><circle cx="90" cy="80" r="5" fill="#ffff00" opacity="0.7"/>
+          <circle cx="60" cy="140" r="5" fill="#ffff00" opacity="0.7"/><circle cx="130" cy="180" r="6" fill="#ffff00" opacity="0.9"/>
+
+          <circle cx="260" cy="50" r="5" fill="#ff0000" opacity="0.7"/><circle cx="340" cy="70" r="5" fill="#ff0000" opacity="0.7"/>
+          <circle cx="280" cy="120" r="5" fill="#ff0000" opacity="0.7"/><circle cx="350" cy="150" r="5" fill="#ff0000" opacity="0.7"/>
+          <circle cx="250" cy="170" r="5" fill="#ff0000" opacity="0.7"/><circle cx="320" cy="40" r="5" fill="#ff0000" opacity="0.7"/>
+          <circle cx="370" cy="90" r="5" fill="#ff0000" opacity="0.7"/><circle cx="290" cy="80" r="5" fill="#ff0000" opacity="0.7"/>
+          <circle cx="260" cy="140" r="5" fill="#ff0000" opacity="0.7"/><circle cx="330" cy="180" r="6" fill="#ff0000" opacity="0.9"/>
+
+          <circle cx="60" cy="250" r="5" fill="#00ff00" opacity="0.7"/><circle cx="140" cy="270" r="5" fill="#00ff00" opacity="0.7"/>
+          <circle cx="80" cy="320" r="5" fill="#00ff00" opacity="0.7"/><circle cx="150" cy="350" r="5" fill="#00ff00" opacity="0.7"/>
+          <circle cx="50" cy="370" r="5" fill="#00ff00" opacity="0.7"/><circle cx="120" cy="240" r="5" fill="#00ff00" opacity="0.7"/>
+          <circle cx="170" cy="290" r="5" fill="#00ff00" opacity="0.7"/><circle cx="90" cy="280" r="5" fill="#00ff00" opacity="0.7"/>
+          <circle cx="60" cy="340" r="5" fill="#00ff00" opacity="0.7"/><circle cx="130" cy="380" r="6" fill="#00ff00" opacity="0.9"/>
+
+          <circle cx="260" cy="250" r="5" fill="#00ccff" opacity="0.7"/><circle cx="340" cy="270" r="5" fill="#00ccff" opacity="0.7"/>
+          <circle cx="280" cy="320" r="5" fill="#00ccff" opacity="0.7"/><circle cx="350" cy="350" r="5" fill="#00ccff" opacity="0.7"/>
+          <circle cx="250" cy="370" r="5" fill="#00ccff" opacity="0.7"/><circle cx="320" cy="240" r="5" fill="#00ccff" opacity="0.7"/>
+          <circle cx="370" cy="290" r="5" fill="#00ccff" opacity="0.7"/><circle cx="290" cy="280" r="5" fill="#00ccff" opacity="0.7"/>
+          <circle cx="260" cy="340" r="5" fill="#00ccff" opacity="0.7"/><circle cx="330" cy="380" r="6" fill="#00ccff" opacity="0.9"/>
+          <!-- Border -->
+          <rect x="1" y="1" width="398" height="398" fill="none" stroke="#444" stroke-width="2"/>
+        </svg>
+        <p class="map-caption">40 planets across 4 quadrants &mdash; 100,000 x 100,000 galactic units</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Ranks Section -->
+<section id="ranks" class="section">
+  <div class="container">
+    <h2 class="section-title">Rank Progression</h2>
+    <p class="section-intro">Advance through 9 military ranks by accumulating T-Mode hours and ratings. Higher ranks unlock advanced ship classes.</p>
+
+    <div class="ranks-table-wrap">
+      <table class="ranks-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Title</th>
+            <th>Code</th>
+            <th>Hours Required</th>
+            <th>Rating Required</th>
+            <th>Offense Required</th>
+            <th>Unlocks</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="rank-num">0</td><td>Ensign</td><td>Esgn</td><td>0</td><td>0.0</td><td>0.0</td><td>SC, CA</td></tr>
+          <tr><td class="rank-num">1</td><td>Lieutenant</td><td>Lt</td><td>2</td><td>1.0</td><td>0.0</td><td>DD</td></tr>
+          <tr><td class="rank-num">2</td><td>Lt. Commander</td><td>LtCm</td><td>4</td><td>2.0</td><td>0.0</td><td>BB, AS</td></tr>
+          <tr><td class="rank-num">3</td><td>Commander</td><td>Cder</td><td>8</td><td>3.0</td><td>0.0</td><td>SB</td></tr>
+          <tr><td class="rank-num">4</td><td>Captain</td><td>Capt</td><td>15</td><td>4.0</td><td>0.0</td><td>&mdash;</td></tr>
+          <tr><td class="rank-num">5</td><td>Fleet Captain</td><td>FltC</td><td>20</td><td>5.0</td><td>0.0</td><td>&mdash;</td></tr>
+          <tr class="rank-elite"><td class="rank-num">6</td><td>Commodore</td><td>Cdor</td><td>25</td><td>6.0</td><td>1.0</td><td>&mdash;</td></tr>
+          <tr class="rank-elite"><td class="rank-num">7</td><td>Rear Admiral</td><td>RAdm</td><td>30</td><td>7.0</td><td>1.2</td><td>&mdash;</td></tr>
+          <tr class="rank-elite"><td class="rank-num">8</td><td>Admiral</td><td>Admr</td><td>40</td><td>8.0</td><td>1.4</td><td>&mdash;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="ratings-info">
+      <h3>How Ratings Work</h3>
+      <p>Your total rating is the sum of three components, each measuring a different aspect of your play:</p>
+      <div class="rating-cards">
+        <div class="rating-card">
+          <h4>Offense Rating</h4>
+          <p>Based on your tournament kills relative to the server average. High offense means you're an effective combatant.</p>
+        </div>
+        <div class="rating-card">
+          <h4>Bombing Rating</h4>
+          <p>Based on enemy armies you've bombed on planets. Essential for weakening enemy territory before invasion.</p>
+        </div>
+        <div class="rating-card">
+          <h4>Planet Rating</h4>
+          <p>Based on planets you've conquered by dropping armies. The most strategically important rating &mdash; planets win games.</p>
+        </div>
+      </div>
+      <p class="rating-note">Defense rating is tracked separately and measures your survival skill (ticks alive vs. deaths).</p>
+    </div>
+  </div>
+</section>
+
+<!-- History Section -->
+<section id="history" class="section section-alt">
+  <div class="container">
+    <h2 class="section-title">Netrek History</h2>
+    <p class="section-intro">From university labs to the modern web &mdash; the story of the internet's first multiplayer team game.</p>
+
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-year">1988</div>
+        <div class="timeline-content">
+          <h3>Xtrek is Born</h3>
+          <p>Kevin Smith at UC Berkeley creates <em>Xtrek</em>, a two-player space combat game for X Window System terminals on Unix workstations. The game lets two players dogfight over a campus network.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-year">1989</div>
+        <div class="timeline-content">
+          <h3>Netrek Emerges</h3>
+          <p>Terence Chang and Scott Silvey extend Xtrek into <em>Netrek</em>, adding team play, planet conquest, multiple ship types, and support for 16 simultaneous players. It becomes arguably the <strong>first internet team sport</strong>.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-year">1990s</div>
+        <div class="timeline-content">
+          <h3>The Golden Age</h3>
+          <p>Netrek becomes a phenomenon on university networks worldwide. At its peak, hundreds of players compete on dozens of servers. An organized "clue" community develops with leagues, drafts, and legendary players. <em>Wired</em> magazine calls it one of the "Top 10 online games."</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-year">1993</div>
+        <div class="timeline-content">
+          <h3>IETF Milestone</h3>
+          <p>The Netrek protocol is documented in RFC 1101 discussions and becomes one of the first networked game protocols studied by the internet standards community. The game pioneers concepts still used in multiplayer gaming today.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-year">2000s</div>
+        <div class="timeline-content">
+          <h3>Evolution Continues</h3>
+          <p>The server codebase matures with features like short packets (bandwidth optimization), LTD stats (detailed tracking), and INL tournament support. Client ports appear for Windows, Mac, and Java.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-year">2024+</div>
+        <div class="timeline-content">
+          <h3>NeoNetrek: Reborn for the Web</h3>
+          <p>NeoNetrek brings the classic game to modern browsers via WebSocket and HTML5 Canvas. No downloads needed &mdash; just open a URL and play. The original server protocol is preserved, connected through a WebSocket proxy layer, keeping compatibility with the battle-tested C server.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="history-facts">
+      <h3>Notable Facts</h3>
+      <ul>
+        <li>Netrek is widely considered the <strong>third internet game ever</strong> (after MUD1 and Maze War) and the <strong>first internet team game</strong>.</li>
+        <li>The game predates the World Wide Web &mdash; Tim Berners-Lee proposed the web in 1989, the same year Netrek launched.</li>
+        <li>The original UDP-based protocol influenced the design of networking code in later games like Quake and Unreal.</li>
+        <li>At peak popularity, some universities had to throttle Netrek traffic because it was consuming too much bandwidth.</li>
+        <li>The game introduced concepts like server-side authority, client-side prediction, and bandwidth-optimized binary protocols that became standard in the game industry.</li>
+        <li>Netrek's code has been continuously maintained as open source for over 35 years, making it one of the longest-lived open source projects.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Servers Section -->
+<section id="servers" class="section">
+  <div class="container">
+    <h2 class="section-title">Active Servers</h2>
+    <p class="section-intro">Choose a server to join. Each server has its own community, leaderboard, and settings.</p>
+    <div class="servers-grid" id="servers-grid">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-col">
+        <h4>NeoNetrek</h4>
+        <p>A modern browser-based reimplementation of the classic Netrek protocol. Open source and community-driven.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Quick Links</h4>
+        <ul>
+          <li><a href="#guide">Player Guide</a></li>
+          <li><a href="#ships">Ship Classes</a></li>
+          <li><a href="#servers">Servers</a></li>
+          <li><a href="academy.html">Academy</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="#history">Game History</a></li>
+          <li><a href="#ranks">Rank System</a></li>
+          <li><a href="#teams">Teams & Factions</a></li>
+          <li><a href="#about">About</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Community</h4>
+        <p>Netrek has been bringing players together since 1989. Join the tradition.</p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>NeoNetrek &copy; 2024&ndash;2026. Based on the original Netrek by Kevin Smith, Terence Chang, and Scott Silvey.</p>
+      <p class="footer-heritage">Keeping the spirit of the internet's first team game alive.</p>
+    </div>
+  </div>
+</footer>
+
+<!-- Server list config (optional external file) -->
+<script src="servers.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
