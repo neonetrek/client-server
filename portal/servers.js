@@ -1,34 +1,11 @@
 /**
- * NeoNetrek Community Server Directory
+ * NeoNetrek Community Server Directory — Local Fallback
  *
- * This file is the canonical list of public NeoNetrek servers.
+ * The server list is now fetched at runtime from https://neonetrek.com/servers.json.
+ * This file provides an empty fallback array so the portal still works if the
+ * fetch fails (e.g. offline development, network issues).
  *
- * To add your server:
- *   1. Fork the client-server repo
- *   2. Add your server entry below
- *   3. Open a pull request
- *
- * See HOSTING.md for full deployment and listing instructions.
- *
- * Entry format:
- *   name         – Short display name (e.g. "US East Bronco")
- *   url          – Public HTTPS URL where your portal is reachable
- *   location     – City/region, Country (e.g. "New York, US")
- *   description  – One-line summary of the server
- *   history      – Optional. Background, story, or lore behind this server
- *   admin        – Display name of the server operator
- *   established  – Year or date the server was launched (e.g. "2024")
- *   features     – Array of short tags (e.g. ["Beginner friendly", "Clue games"])
+ * To add your server to the directory, open a PR to neonetrek/neonetrek.github.io
+ * adding your entry to servers.json.
  */
-window.NEONETREK_SERVERS = [
-  {
-    name: "London",
-    url: "https://neonetrek-lhr.fly.dev",
-    location: "London, UK",
-    description: "The first NeoNetrek server.",
-    history: "Born from memories of the Sun Lab at UUJ Jordanstown, class of '94\u2013'98. The original deployment that brought Netrek back to the browser.",
-    admin: "NeoNetrek Team",
-    established: "2024",
-    features: ["Original server", "Beginner friendly"],
-  },
-];
+window.NEONETREK_SERVERS = [];

@@ -189,8 +189,26 @@
   };
 
   // ---------- Community Servers ----------
+  var SERVER_DIRECTORY_URL = 'https://neonetrek.com/servers.json';
+
   function renderServers() {
-    var servers = window.NEONETREK_SERVERS;
+    fetch(SERVER_DIRECTORY_URL)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (Array.isArray(data) && data.length > 0) {
+          renderServerCards(data);
+        }
+      })
+      .catch(function () {
+        // Fallback to bundled list if fetch fails
+        var fallback = window.NEONETREK_SERVERS;
+        if (fallback && fallback.length) {
+          renderServerCards(fallback);
+        }
+      });
+  }
+
+  function renderServerCards(servers) {
     if (!servers || !servers.length) return;
 
     var grid = document.getElementById('servers-grid');

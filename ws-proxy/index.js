@@ -19,7 +19,7 @@ const path = require('path');
 
 const NETREK_HOST = process.env.NETREK_HOST || '127.0.0.1';
 const NETREK_PORT = parseInt(process.env.NETREK_PORT || '2592', 10);
-const WS_PORT = parseInt(process.env.WS_PORT || '3000', 10);
+const WS_PORT = parseInt(process.env.WS_PORT || process.env.PORT || '3000', 10);
 const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '..', 'web-client', 'dist');
 const PORTAL_DIR = process.env.PORTAL_DIR || path.join(__dirname, '..', 'portal');
 
