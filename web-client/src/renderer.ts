@@ -16,6 +16,7 @@ import {
   PLREPAIR, PLFUEL, PLAGRI, PLHOME,
   TEAM_COLORS, TEAM_LETTERS, SHIP_SHORT, SHIP_STATS,
   FED, ROM, KLI, ORI, IND,
+  SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, SGALAXY,
   MAXTORP, MAXPLAYER,
 } from './constants';
 
@@ -74,6 +75,12 @@ export class Renderer {
   }
 
   render() {
+    // Show outfit screen during outfit/dead phases
+    if (this.state.phase === 'outfit' || this.state.phase === 'dead') {
+      this.renderOutfit(this.tacCtx, this.canvasSize, this.state.myTeam);
+      return;
+    }
+
     if (this.showGalactic) {
       this.renderGalactic();
     } else {
@@ -226,7 +233,7 @@ export class Renderer {
       if (sx < -20 || sx > size + 20 || sy < -20 || sy > size + 20) continue;
 
       if (player.status === PEXPLODE) {
-        this.drawExplosion(ctx, sx, sy);
+        this.drawExplosion(ctx, sx, sy, player.explodeStart);
         continue;
       }
 
@@ -353,13 +360,25 @@ export class Renderer {
     ctx.textAlign = 'left';
   }
 
-  private drawExplosion(ctx: CanvasRenderingContext2D, sx: number, sy: number) {
-    const t = (Date.now() % 500) / 500;
+  private drawExplosion(ctx: CanvasRenderingContext2D, sx: number, sy: number, startTime: number) {
+    const EXPLOSION_DURATION = 500; // ms
+    const elapsed = Date.now() - (startTime || Date.now());
+    const t = Math.min(1, Math.max(0, elapsed / EXPLOSION_DURATION));
     const radius = 10 + t * 20;
-    ctx.fillStyle = `rgba(255, ${Math.floor(128 * (1 - t))}, 0, ${1 - t})`;
+    const alpha = 1 - t;
+    ctx.fillStyle = `rgba(255, ${Math.floor(128 * (1 - t))}, 0, ${alpha})`;
     ctx.beginPath();
     ctx.arc(sx, sy, radius, 0, Math.PI * 2);
     ctx.fill();
+
+    // Secondary ring for visual impact
+    if (t < 0.7) {
+      ctx.strokeStyle = `rgba(255, 255, 0, ${0.5 * (1 - t / 0.7)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(sx, sy, radius + 5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 
   // ============================================================
@@ -388,7 +407,7 @@ export class Renderer {
     else if (me.flags & PFYELLOW) alertColor = '#888800';
 
     ctx.fillStyle = alertColor + '44';
-    ctx.fillRect(x - 4, y - 4, barWidth + 16, 136);
+    ctx.fillRect(x - 4, y - 4, barWidth + 16, 152);
 
     // Shields
     this.drawBar(ctx, 'SH', me.shield, maxShield, x, y, barWidth, barHeight, '#00ccff');
@@ -423,6 +442,14 @@ export class Renderer {
     if (me.flags & PFREPAIR) flags.push('RP');
     if (me.flags & PFBOMB) flags.push('BM');
     ctx.fillText(flags.join(' '), x, y + 8);
+    y += 16;
+
+    // Latency
+    if (this.state.latencyMs >= 0) {
+      const lag = this.state.latencyMs;
+      ctx.fillStyle = lag < 100 ? '#0f0' : lag < 250 ? '#ff0' : '#f00';
+      ctx.fillText(`Lag: ${lag}ms`, x, y + 8);
+    }
 
     ctx.restore();
   }
@@ -525,6 +552,154 @@ export class Renderer {
 
       ctx.strokeStyle = '#444';
       ctx.strokeRect(mx - halfRange, my - halfRange, halfRange * 2, halfRange * 2);
+    }
+
+    ctx.restore();
+  }
+
+  // ============================================================
+  // Outfit Selection Screen
+  // ============================================================
+
+  renderOutfit(ctx: CanvasRenderingContext2D, size: number, selectedTeam: number) {
+    ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, size, size);
+
+    // Title
+    ctx.fillStyle = '#0f0';
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SELECT TEAM & SHIP', size / 2, 30);
+
+    const mask = this.state.teamMask;
+    const teams = [
+      { flag: FED, name: 'Federation', key: 'F', color: TEAM_COLORS[FED] },
+      { flag: ROM, name: 'Romulan',    key: 'R', color: TEAM_COLORS[ROM] },
+      { flag: KLI, name: 'Klingon',    key: 'K', color: TEAM_COLORS[KLI] },
+      { flag: ORI, name: 'Orion',      key: 'O', color: TEAM_COLORS[ORI] },
+    ];
+
+    const boxW = 100;
+    const boxH = 60;
+    const gap = 16;
+    const totalW = teams.length * boxW + (teams.length - 1) * gap;
+    const startX = (size - totalW) / 2;
+    const teamY = 55;
+
+    // Draw team boxes
+    for (let i = 0; i < teams.length; i++) {
+      const t = teams[i];
+      const x = startX + i * (boxW + gap);
+      const available = !!(mask & t.flag);
+      const selected = selectedTeam === t.flag;
+
+      // Box background
+      if (selected) {
+        ctx.fillStyle = t.color + '44';
+        ctx.fillRect(x, teamY, boxW, boxH);
+      }
+
+      // Box border
+      ctx.strokeStyle = available ? t.color : '#333';
+      ctx.lineWidth = selected ? 3 : 1;
+      ctx.strokeRect(x, teamY, boxW, boxH);
+
+      // Team name
+      ctx.fillStyle = available ? t.color : '#444';
+      ctx.font = 'bold 13px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(t.name, x + boxW / 2, teamY + 25);
+
+      // Key hint
+      ctx.font = '11px monospace';
+      ctx.fillStyle = available ? '#aaa' : '#333';
+      ctx.fillText(`[${t.key}]`, x + boxW / 2, teamY + 45);
+    }
+
+    // Ship selection (shown when team is selected)
+    if (selectedTeam) {
+      const ships = [
+        { type: SCOUT,      name: 'Scout',      short: 'SC', key: 'S', stats: SHIP_STATS[SCOUT] },
+        { type: DESTROYER,  name: 'Destroyer',   short: 'DD', key: 'D', stats: SHIP_STATS[DESTROYER] },
+        { type: CRUISER,    name: 'Cruiser',     short: 'CA', key: 'C', stats: SHIP_STATS[CRUISER] },
+        { type: BATTLESHIP, name: 'Battleship',  short: 'BB', key: 'B', stats: SHIP_STATS[BATTLESHIP] },
+        { type: ASSAULT,    name: 'Assault',     short: 'AS', key: 'A', stats: SHIP_STATS[ASSAULT] },
+        { type: SGALAXY,    name: 'Galaxy',      short: 'GA', key: 'G', stats: SHIP_STATS[SGALAXY] ?? SHIP_STATS[CRUISER] },
+      ];
+
+      ctx.fillStyle = '#888';
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Choose a ship:', size / 2, teamY + boxH + 30);
+
+      // Ship cards
+      const shipW = 72;
+      const shipH = 120;
+      const shipGap = 8;
+      const totalShipW = ships.length * shipW + (ships.length - 1) * shipGap;
+      const shipStartX = (size - totalShipW) / 2;
+      const shipY = teamY + boxH + 45;
+
+      const teamColor = TEAM_COLORS[selectedTeam];
+
+      for (let i = 0; i < ships.length; i++) {
+        const s = ships[i];
+        const x = shipStartX + i * (shipW + shipGap);
+
+        // Card background
+        ctx.fillStyle = '#111';
+        ctx.fillRect(x, shipY, shipW, shipH);
+        ctx.strokeStyle = teamColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, shipY, shipW, shipH);
+
+        // Ship icon (triangle)
+        const cx = x + shipW / 2;
+        const cy = shipY + 25;
+        const iconSize = 12;
+        ctx.fillStyle = teamColor;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - iconSize);
+        ctx.lineTo(cx - iconSize * 0.7, cy + iconSize * 0.5);
+        ctx.lineTo(cx + iconSize * 0.7, cy + iconSize * 0.5);
+        ctx.closePath();
+        ctx.fill();
+
+        // Ship name
+        ctx.font = 'bold 10px monospace';
+        ctx.fillStyle = teamColor;
+        ctx.textAlign = 'center';
+        ctx.fillText(s.name, cx, shipY + 50);
+
+        // Stats
+        ctx.font = '9px monospace';
+        ctx.fillStyle = '#888';
+        if (s.stats) {
+          ctx.fillText(`Spd:${s.stats.speed}`, cx, shipY + 65);
+          ctx.fillText(`Sh:${s.stats.shields}`, cx, shipY + 77);
+          ctx.fillText(`Hu:${s.stats.hull}`, cx, shipY + 89);
+          ctx.fillText(`Arm:${s.stats.maxArmies}`, cx, shipY + 101);
+        }
+
+        // Key hint
+        ctx.font = '11px monospace';
+        ctx.fillStyle = '#aaa';
+        ctx.fillText(`[${s.key}]`, cx, shipY + shipH - 4);
+      }
+    } else {
+      ctx.fillStyle = '#666';
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Select a team to see available ships', size / 2, teamY + boxH + 30);
+    }
+
+    // Queue position
+    if (this.state.queuePos >= 0) {
+      ctx.fillStyle = '#ff0';
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Queue position: ${this.state.queuePos}`, size / 2, size - 30);
     }
 
     ctx.restore();

@@ -8,8 +8,11 @@
 
 import { SP, SP_BY_CODE, CP, pack, unpack, formatSize } from './protocol';
 import { GameState } from './state';
+import { AudioEngine } from './audio';
 import {
   PALIVE, PEXPLODE, PDEAD, POUTFIT, POBSERV, PFREE,
+  TMOVE, TEXPLODE, PTMOVE, PTEXPLODE,
+  PHHIT, PHHIT2, PHMISS,
   MAXPLAYER, MAXPLANETS, MAXTORP,
 } from './constants';
 
@@ -18,6 +21,11 @@ export class NetrekConnection {
   private recvBuffer: Uint8Array = new Uint8Array(0);
   private state: GameState;
   private onStateUpdate: () => void;
+  private wsUrl: string = '';
+  private reconnectAttempts = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private intentionalClose = false;
+  readonly audio = new AudioEngine();
 
   constructor(state: GameState, onStateUpdate: () => void) {
     this.state = state;
@@ -25,12 +33,19 @@ export class NetrekConnection {
   }
 
   connect(url: string) {
-    this.ws = new WebSocket(url);
+    this.wsUrl = url;
+    this.intentionalClose = false;
+    this.doConnect();
+  }
+
+  private doConnect() {
+    this.ws = new WebSocket(this.wsUrl);
     this.ws.binaryType = 'arraybuffer';
 
     this.ws.onopen = () => {
       console.log('[net] Connected to server');
       this.state.connected = true;
+      this.reconnectAttempts = 0;
       // Send CP_SOCKET to identify ourselves
       this.sendSocket(10, 0); // version 10
       this.onStateUpdate();
@@ -47,6 +62,9 @@ export class NetrekConnection {
       console.log('[net] Connection closed');
       this.state.connected = false;
       this.onStateUpdate();
+      if (!this.intentionalClose) {
+        this.scheduleReconnect();
+      }
     };
 
     this.ws.onerror = (err) => {
@@ -56,7 +74,36 @@ export class NetrekConnection {
     };
   }
 
+  private scheduleReconnect() {
+    if (this.reconnectTimer) return;
+    const MAX_RECONNECT = 5;
+    if (this.reconnectAttempts >= MAX_RECONNECT) {
+      this.state.warningText = 'Connection lost. Refresh page to retry.';
+      this.state.warningTime = Date.now();
+      this.onStateUpdate();
+      return;
+    }
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 16000);
+    this.reconnectAttempts++;
+    console.log(`[net] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT})`);
+    this.state.warningText = `Reconnecting in ${Math.round(delay / 1000)}s...`;
+    this.state.warningTime = Date.now();
+    this.onStateUpdate();
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.recvBuffer = new Uint8Array(0);
+      this.doConnect();
+    }, delay);
+  }
+
   disconnect() {
+    this.intentionalClose = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.ws) {
       this.sendBye();
       this.ws.close();
@@ -180,6 +227,11 @@ export class NetrekConnection {
         const pnum = f[1] as number;
         if (!this.validPlayer(pnum)) break;
         const status = f[2] as number;
+        // Track explosion start time for frame-synced animation
+        if (status === PEXPLODE && s.players[pnum].status !== PEXPLODE) {
+          s.players[pnum].explodeStart = Date.now();
+          this.audio.playShipExplode();
+        }
         s.players[pnum].status = status;
 
         // Update our phase
@@ -230,6 +282,13 @@ export class NetrekConnection {
         const status = f[2] as number;
         const tnum = f[3] as number;
         if (!this.validTorp(tnum)) break;
+        // Play sound on status transition
+        const oldTorpStatus = s.torps[tnum].status;
+        if (status === TEXPLODE && oldTorpStatus !== TEXPLODE) {
+          this.audio.playTorpExplode();
+        } else if (status === TMOVE && oldTorpStatus !== TMOVE && s.torps[tnum].owner === s.myNumber) {
+          this.audio.playTorpFire();
+        }
         s.torps[tnum].status = status;
         s.torps[tnum].war = war;
         break;
@@ -250,12 +309,17 @@ export class NetrekConnection {
         const f = unpack(SP.PHASER.format, view);
         const pnum = f[1] as number;
         if (!this.validPlayer(pnum)) break;
-        s.phasers[pnum].status = f[2] as number;
+        const phaserStatus = f[2] as number;
+        s.phasers[pnum].status = phaserStatus;
         s.phasers[pnum].dir = f[3] as number;
         s.phasers[pnum].x = f[4] as number;
         s.phasers[pnum].y = f[5] as number;
         s.phasers[pnum].target = f[6] as number;
         s.phasers[pnum].fuse = 10; // display for ~10 frames
+        // Play phaser sound for our player
+        if (pnum === s.myNumber && (phaserStatus === PHHIT || phaserStatus === PHHIT2 || phaserStatus === PHMISS)) {
+          this.audio.playPhaserFire();
+        }
         break;
       }
 
@@ -265,6 +329,12 @@ export class NetrekConnection {
         const status = f[2] as number;
         const pnum = f[3] as number;
         if (!this.validPlayer(pnum)) break;
+        const oldPlasmaStatus = s.plasmas[pnum].status;
+        if (status === PTMOVE && oldPlasmaStatus !== PTMOVE && pnum === s.myNumber) {
+          this.audio.playPlasmaFire();
+        } else if (status === PTEXPLODE && oldPlasmaStatus !== PTEXPLODE) {
+          this.audio.playTorpExplode();
+        }
         s.plasmas[pnum].status = status;
         s.plasmas[pnum].war = war;
         break;
@@ -347,9 +417,20 @@ export class NetrekConnection {
       }
 
       case 'PING': {
-        // Respond to server pings immediately
+        // Respond to server pings immediately and measure latency
         const f = unpack(SP.PING.format, view);
         const num = f[1] as number;
+        const serverLag = f[2] as number; // server-measured roundtrip in ms
+        // Use server-reported lag if available, else measure client-side
+        if (s.lastPingTime > 0) {
+          const clientRoundtrip = Date.now() - s.lastPingTime;
+          s.latencyMs = serverLag > 0
+            ? Math.round((serverLag + clientRoundtrip) / 2)
+            : clientRoundtrip;
+        } else if (serverLag > 0) {
+          s.latencyMs = serverLag;
+        }
+        s.lastPingTime = Date.now();
         this.sendPingResponse(num);
         break;
       }

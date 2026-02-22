@@ -42,8 +42,8 @@ Capped at 15 characters (16-byte field minus null terminator).
 
 ## LOW Priority - Polish
 
-### 12. No Visual for MOTD-to-Outfit Transition
-After login, the outfit prompt appears as a warning text overlay only. Would benefit from a proper team selection screen showing available teams, player counts, and ship selection UI.
+### 12. [FIXED] No Visual for MOTD-to-Outfit Transition
+Added full outfit selection UI with team boxes (color-coded, availability-checked) and ship cards showing stats (speed, shields, hull, armies). Replaces text-only prompts.
 
 ### 13. [FIXED] Missing Galactic Ship Types
 Galaxy ship added to outfit selection (`g` key). ATT not added (intentionally restricted).
@@ -51,17 +51,17 @@ Galaxy ship added to outfit selection (`g` key). ATT not added (intentionally re
 ### 14. [FIXED] No Planet Home Flag Indicator
 Home planets now display a white outer ring.
 
-### 15. No Sound Effects
-No audio — torpedoes, phasers, explosions, alerts would benefit from sound.
+### 15. [FIXED] No Sound Effects
+Added Web Audio API synthesized sound engine (`audio.ts`). Procedurally generated sounds for: torpedo fire, torpedo explosion, phaser fire, plasma fire, ship explosion. Mute toggle with `M` key.
 
-### 16. No Reconnect Logic
-If the WebSocket drops, there's no auto-reconnect. User must refresh the page.
+### 16. [FIXED] No Reconnect Logic
+Auto-reconnect with exponential backoff (1s, 2s, 4s, 8s, 16s). Max 5 attempts before showing "refresh page" message. Reconnect status shown in warning overlay. Intentional disconnects skip reconnect.
 
-### 17. Explosion Animation Not Frame-Synced
-Uses `Date.now() % 500` for timing. Should use accumulated delta time for smoother animation on high-refresh displays.
+### 17. [FIXED] Explosion Animation Not Frame-Synced
+Explosions now track `explodeStart` timestamp per player. Animation uses elapsed time from start rather than `Date.now() % 500`. Added secondary ring visual effect.
 
-### 18. No Connection Status / Latency Display
-Could use SP_PING/CP_PING_RESPONSE roundtrip to show connection quality.
+### 18. [FIXED] No Connection Status / Latency Display
+Latency measured from SP_PING roundtrip timing, blended with server-reported lag. Displayed in HUD with color coding: green (<100ms), yellow (<250ms), red (>=250ms).
 
 ## Architecture Gaps
 
@@ -69,7 +69,7 @@ Could use SP_PING/CP_PING_RESPONSE roundtrip to show connection quality.
 TCP-only via WebSocket. Not a problem in practice (WS proxy is localhost to C server), but means slightly higher latency for position updates from the browser.
 
 ### 20. Docker Image Not Yet Tested End-to-End
-The Dockerfile and configs exist but haven't been built and run as a complete container. The C server compilation in Docker needs verification.
+The Dockerfile and configs exist. Web client Vite build verified. Docker daemon not available in dev environment for full container build test. All individual components (C server source, ws-proxy, web client) are present and correctly referenced.
 
 ### 21. [FIXED] No Health Check Endpoint
 Added `/health` endpoint returning JSON with status, uptime, connection count, and netrek host/port.
@@ -80,8 +80,8 @@ Added `/health` endpoint returning JSON with status, uptime, connection count, a
 |----------|-----------|-------------|
 | HIGH | 0 | All fixed |
 | MEDIUM | 0 | All fixed |
-| LOW | 4 | Outfit UI, sound, reconnect, animations |
-| Architecture | 2 | Docker e2e testing, UDP |
+| LOW | 0 | All fixed |
+| Architecture | 2 | Docker e2e testing (needs daemon), UDP (design choice) |
 
 ## Test Coverage
 

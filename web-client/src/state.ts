@@ -29,6 +29,7 @@ export interface Player {
   hull: number;
   wTemp: number;
   eTemp: number;
+  explodeStart: number; // timestamp when explosion began
 }
 
 export interface Torpedo {
@@ -111,6 +112,10 @@ export interface GameState {
   // Server info
   queuePos: number;
 
+  // Ping / latency
+  lastPingTime: number;
+  latencyMs: number;
+
   // Game status
   armies: [number, number, number, number]; // FED, ROM, KLI, ORI
   planets_owned: [number, number, number, number];
@@ -122,7 +127,7 @@ function createPlayer(num: number): Player {
     x: 0, y: 0, dir: 0, speed: 0,
     name: '', login: '', rank: 0, kills: 0,
     hostile: 0, war: 0, armies: 0,
-    fuel: 0, shield: 0, hull: 0, wTemp: 0, eTemp: 0,
+    fuel: 0, shield: 0, hull: 0, wTemp: 0, eTemp: 0, explodeStart: 0,
   };
 }
 
@@ -179,6 +184,8 @@ export function createGameState(): GameState {
     warningText: '',
     warningTime: 0,
     queuePos: -1,
+    lastPingTime: 0,
+    latencyMs: -1,
     armies: [0, 0, 0, 0],
     planets_owned: [0, 0, 0, 0],
   };

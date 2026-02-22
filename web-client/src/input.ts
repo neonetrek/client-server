@@ -298,6 +298,14 @@ export class InputHandler {
         e.preventDefault();
         break;
 
+      // Mute toggle
+      case 'M': {
+        const muted = this.net.audio.toggleMute();
+        this.state.warningText = muted ? 'Sound: OFF' : 'Sound: ON';
+        this.state.warningTime = Date.now();
+        break;
+      }
+
       // Quit
       case 'Q':
         if (e.shiftKey) {
