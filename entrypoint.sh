@@ -86,6 +86,7 @@ if [ -f "$CONFIG_FILE" ]; then
 
       # Copy robot config directory (needed for pret bot spawning)
       if [ -d "$NETREK_DIR/etc/og" ]; then
+        rm -rf "$STATE_DIR/og"
         cp -r "$NETREK_DIR/etc/og" "$STATE_DIR/og"
       fi
 
