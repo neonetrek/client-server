@@ -402,6 +402,37 @@ body {
 }
 
 /* ---------- Leaderboard ---------- */
+.lb-instance-tabs {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.lb-instance-tab {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 0.4rem 1.2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.lb-instance-tab:hover {
+  color: var(--text-heading);
+  border-color: var(--accent-gold);
+}
+
+.lb-instance-tab.active {
+  background: rgba(255,204,0,0.12);
+  color: var(--accent-gold);
+  border-color: var(--accent-gold);
+}
+
 .lb-tabs {
   display: flex;
   gap: 0.5rem;

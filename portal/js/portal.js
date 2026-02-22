@@ -114,6 +114,7 @@
       .then(function (data) {
         if (!Array.isArray(data) || data.length === 0) return;
         instancesData = data;
+        buildInstanceMap(data);
 
         // Update hero stats with total player count
         var totalPlayers = data.reduce(function (sum, inst) {
@@ -129,6 +130,7 @@
         if (section && data.length > 1) {
           section.style.display = '';
           renderInstances(data);
+          renderLeaderboardInstanceTabs(data);
 
           // Update hero "Play Now" to link to first instance
           var heroBtn = document.querySelector('.hero-buttons .btn-primary');
@@ -203,9 +205,12 @@
   ];
 
   var leaderboardData = null;
+  var leaderboardInstance = null; // current instance for leaderboard
 
-  function fetchLeaderboard() {
-    fetch('/api/leaderboard')
+  function fetchLeaderboard(instanceId) {
+    var url = '/api/leaderboard';
+    if (instanceId) url += '?instance=' + encodeURIComponent(instanceId);
+    fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (Array.isArray(data) && data.length > 0) {
@@ -256,6 +261,39 @@
     }
   };
 
+  // ---------- Leaderboard Instance Tabs ----------
+  function renderLeaderboardInstanceTabs(data) {
+    var container = document.getElementById('lb-instance-tabs');
+    if (!container || data.length <= 1) return;
+
+    container.style.display = '';
+    container.innerHTML = data.map(function (inst, i) {
+      var cls = i === 0 ? 'lb-instance-tab active' : 'lb-instance-tab';
+      return '<button class="' + cls + '" onclick="switchLeaderboardInstance(\'' +
+        escapeHtml(inst.id) + '\')">' + escapeHtml(inst.name) + '</button>';
+    }).join('');
+
+    // Fetch first instance's leaderboard
+    leaderboardInstance = data[0].id;
+    fetchLeaderboard(data[0].id);
+  }
+
+  window.switchLeaderboardInstance = function (instanceId) {
+    leaderboardInstance = instanceId;
+    document.querySelectorAll('.lb-instance-tab').forEach(function (tab) {
+      tab.classList.toggle('active', tab.textContent === (instanceMap[instanceId] || instanceId));
+    });
+    fetchLeaderboard(instanceId);
+  };
+
+  // Build a name lookup for instances
+  var instanceMap = {};
+  function buildInstanceMap(data) {
+    data.forEach(function (inst) {
+      instanceMap[inst.id] = inst.name;
+    });
+  }
+
   // ---------- Nav ----------
   document.querySelectorAll('.nav-links a').forEach(function (link) {
     link.addEventListener('click', function () {
@@ -267,7 +305,7 @@
   function init() {
     applyConfig();
     fetchInstances();
-    fetchLeaderboard();
+    fetchLeaderboard(null);
     // Refresh instances every 30 seconds (includes player counts)
     setInterval(fetchInstances, 30000);
   }

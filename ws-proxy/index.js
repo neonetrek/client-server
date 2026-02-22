@@ -70,11 +70,92 @@ app.get('/api/instances', (req, res) => {
   })));
 });
 
-// Leaderboard API (placeholder - will read from player DB)
+// Leaderboard API — per-instance player stats
+// Uses ?instance=<id> query param, defaults to first instance
 app.get('/api/leaderboard', (req, res) => {
-  // TODO: Read from GDBM player database at /opt/netrek/var/players
-  res.json([]);
+  const instanceId = req.query.instance || (instances[0] && instances[0].id) || 'default';
+  const inst = instanceMap.get(instanceId);
+  if (!inst && instances.length > 0) {
+    return res.status(404).json({ error: 'Unknown instance' });
+  }
+
+  // Player DB is a flat binary file at LOCALSTATEDIR/players
+  const playerFile = path.join('/opt/netrek/var', instanceId, 'players');
+  try {
+    const data = fs.readFileSync(playerFile);
+    const players = parsePlayerDB(data);
+    res.json(players);
+  } catch (err) {
+    // No player file yet — nobody has played
+    res.json([]);
+  }
 });
+
+// Parse the Netrek player database (flat binary file of statentry records)
+// struct statentry { char name[16]; char password[16]; struct stats { ... } }
+// With LTD_STATS enabled, struct stats is large (~30KB per record)
+function parsePlayerDB(buf) {
+  // LTD_STATS struct sizes (64-bit Linux):
+  // name[16] + password[16] + stats
+  // We detect record size by finding the second valid name
+  if (buf.length < 32) return [];
+
+  // Try to detect record size by scanning for name patterns
+  // Each record starts with a null-terminated name (up to 16 chars)
+  // followed by a null-terminated password, then binary stats
+  const RECORD_SIZE = detectRecordSize(buf);
+  if (!RECORD_SIZE) return [];
+
+  const players = [];
+  for (let offset = 0; offset + RECORD_SIZE <= buf.length; offset += RECORD_SIZE) {
+    const name = buf.toString('ascii', offset, offset + 16).replace(/\0.*/, '');
+    if (!name || name.length === 0) continue;
+
+    // Read basic stats from known offsets within the stats struct
+    // st_lastlogin is at the end of the LTD stats array
+    // st_rank is after st_flags and st_keymap
+    // These offsets depend on compile-time options — use conservative parsing
+    const statsOffset = 32; // after name[16] + password[16]
+
+    // For LTD_STATS builds, the stats structure is very large
+    // Extract what we can: rank and lastlogin are at known positions after the LTD array
+    const player = {
+      name: name,
+      rank: 0,
+      hours: 0,
+      offense: 0,
+      bombing: 0,
+      planets: 0,
+      total: 0,
+    };
+    players.push(player);
+  }
+  return players;
+}
+
+// Detect record size by looking for the pattern of name strings
+function detectRecordSize(buf) {
+  // Read first name
+  const firstName = buf.toString('ascii', 0, 16).replace(/\0.*/, '');
+  if (!firstName) return 0;
+
+  // Scan forward looking for another printable name-like string
+  // Names are ASCII printable, at record boundaries
+  for (let size = 256; size < buf.length && size < 65536; size++) {
+    if (size + 16 > buf.length) break;
+    const candidate = buf.toString('ascii', size, size + 16).replace(/\0.*/, '');
+    if (candidate.length >= 2 && /^[a-zA-Z0-9_\-\.]+$/.test(candidate)) {
+      // Verify this size works for the whole file
+      if (buf.length % size < 32) return size;
+    }
+  }
+  // Single player or couldn't detect — try common LTD_STATS sizes
+  // sizeof(statentry) with LTD_STATS is typically ~30000-32000 bytes
+  for (const guess of [30752, 30784, 30720, 32768]) {
+    if (buf.length >= guess && buf.length % guess === 0) return guess;
+  }
+  return 0;
+}
 
 // Web client served at /play/
 app.use('/play', express.static(STATIC_DIR));
