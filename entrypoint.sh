@@ -68,9 +68,12 @@ if [ -f "$CONFIG_FILE" ]; then
         .sysdef // {} | to_entries | map(.key + "=" + (.value | tostring)) | .[]
       ' > "$STATE_DIR/sysdef"
 
-      # Add robot host config (always needed for bot instances)
+      # Robot host config: IS_ROBOT_BY_HOST must be 0 because ws-proxy
+      # also connects from 127.0.0.1, which would cause pret to classify
+      # human players as robots. Robots are identified by PFROBOT/PFBPROBOT
+      # flags instead.
       echo "ROBOTHOST=127.0.0.1" >> "$STATE_DIR/sysdef"
-      echo "IS_ROBOT_BY_HOST=1" >> "$STATE_DIR/sysdef"
+      echo "IS_ROBOT_BY_HOST=0" >> "$STATE_DIR/sysdef"
 
       echo "[entrypoint] Generated sysdef for '$id'"
 
@@ -80,6 +83,11 @@ if [ -f "$CONFIG_FILE" ]; then
           cp "$NETREK_DIR/etc/$f" "$STATE_DIR/$f"
         fi
       done
+
+      # Copy robot config directory (needed for pret bot spawning)
+      if [ -d "$NETREK_DIR/etc/og" ]; then
+        cp -r "$NETREK_DIR/etc/og" "$STATE_DIR/og"
+      fi
 
       # Generate ports file for this instance's newstartd
       cat > "$STATE_DIR/ports" <<PORTS

@@ -50,6 +50,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy built netrek server
 COPY --from=server-builder /opt/netrek /opt/netrek
 
+# Create robot command file (not installed by make install — known upstream bug).
+# Without this, pret bots fail to spawn because execl can't find COMFILE.
+# hm 9 = easy difficulty, randtorp = random torp timing, upd 2 = 5 updates/sec
+RUN mkdir -p /opt/netrek/etc/og && printf '%s\n' \
+    'hm 9' \
+    'randtorp' \
+    'upd 2' \
+    > /opt/netrek/etc/og/og
+
 # Copy WS proxy
 COPY ws-proxy/ /opt/ws-proxy/
 WORKDIR /opt/ws-proxy
