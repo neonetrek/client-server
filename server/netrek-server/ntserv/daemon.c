@@ -1834,9 +1834,9 @@ static void udplayers(void)
     if (nfree == MAXPLAYER) {
         if (dietime == -1) {
             if (status->gameup & GU_GAMEOK) {
-                dietime = context->frame + seconds_to_frames(60);
+                dietime = context->frame + seconds_to_frames(3600);
             } else {
-                dietime = context->frame + seconds_to_frames(1);
+                dietime = context->frame + seconds_to_frames(600);
             }
         }
     } else {

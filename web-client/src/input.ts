@@ -97,6 +97,21 @@ export class InputHandler {
   private handleLoginInput(e: KeyboardEvent) {
     if (!this.state.connected) return;
 
+    // If login is done but phase hasn't changed yet, don't swallow input
+    if (this.loginState === 'done') {
+      // Phase may have transitioned to 'outfit' between frames
+      if (this.state.phase === 'outfit' || this.state.phase === 'dead') {
+        this.handleOutfitInput(e);
+      } else if (e.key === 'Enter') {
+        // Login was rejected — let user retry
+        this.loginState = 'enterName';
+        this.inputBuffer = '';
+        this.state.warningText = 'Enter name (or press Enter for guest):';
+        this.state.warningTime = Date.now();
+      }
+      return;
+    }
+
     switch (this.loginState) {
       case 'waiting':
         if (e.key === 'Enter') {
@@ -158,6 +173,7 @@ export class InputHandler {
 
     const team = teamMap[e.key];
     if (team !== undefined) {
+      console.log(`[input] Team key '${e.key}' → team=${team}, teamMask=0x${this.state.teamMask.toString(16)}, match=${!!(this.state.teamMask & team)}`);
       if (this.state.teamMask & team) {
         this.state.myTeam = team;
         this.state.warningText = 'Ship: (s)cout (d)estroyer (c)ruiser (b)attleship (a)ssault (g)alaxy';

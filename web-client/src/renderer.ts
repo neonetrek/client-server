@@ -758,19 +758,27 @@ export class Renderer {
     // MOTD text
     ctx.font = '11px monospace';
     ctx.fillStyle = '#0a0';
-    const startLine = Math.max(0, this.state.motdLines.length - 30);
+    const startLine = Math.max(0, this.state.motdLines.length - 25);
     for (let i = startLine; i < this.state.motdLines.length; i++) {
       const y = 80 + (i - startLine) * 14;
-      if (y > size - 20) break;
+      if (y > size - 80) break;
       ctx.fillText(this.state.motdLines[i], 10, y);
     }
 
-    // Connection status
-    ctx.fillStyle = this.state.connected ? '#0f0' : '#f00';
+    // Login prompt - show prominently during login phase
     ctx.textAlign = 'center';
+    ctx.font = '14px monospace';
+    if (this.state.warningText) {
+      ctx.fillStyle = '#ff0';
+      ctx.fillText(this.state.warningText, size / 2, size - 50);
+    }
+
+    // Connection status
+    ctx.font = '12px monospace';
+    ctx.fillStyle = this.state.connected ? '#0a0' : '#f00';
     ctx.fillText(
-      this.state.connected ? 'Connected - Press Enter to login' : 'Connecting...',
-      size / 2, size - 10
+      this.state.connected ? 'Connected - Press ENTER to login' : 'Connecting...',
+      size / 2, size - 20
     );
     ctx.textAlign = 'left';
   }

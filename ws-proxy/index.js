@@ -68,20 +68,23 @@ wss.on('connection', (ws) => {
   // Forward TCP data from server → browser (as binary)
   tcp.on('data', (data) => {
     if (ws.readyState === ws.OPEN) {
+      console.log(`[proxy] S→C ${data.length}B first_type=${data[0]}`);
       ws.send(data);
     }
   });
 
   // Forward WebSocket data from browser → server (as binary)
   ws.on('message', (data) => {
+    let buf;
     if (Buffer.isBuffer(data)) {
-      tcp.write(data);
+      buf = data;
     } else if (data instanceof ArrayBuffer) {
-      tcp.write(Buffer.from(data));
+      buf = Buffer.from(data);
     } else {
-      // String or other - convert
-      tcp.write(Buffer.from(data));
+      buf = Buffer.from(data);
     }
+    console.log(`[proxy] C→S ${buf.length}B type=${buf[0]} hex=${buf.toString('hex').substring(0, 32)}`);
+    tcp.write(buf);
   });
 
   // Clean up on close

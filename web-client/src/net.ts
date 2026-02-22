@@ -52,9 +52,17 @@ export class NetrekConnection {
       console.log('[net] Connected to server');
       this.state.connected = true;
       this.reconnectAttempts = 0;
-      // Send CP_SOCKET to identify ourselves
-      this.sendSocket(10, 0); // version 10
-      this.onStateUpdate();
+      // Wait a tick to ensure WebSocket is ready, then send CP_SOCKET
+      setTimeout(() => {
+        console.log('[net] Sending CP_SOCKET version 4');
+        this.sendSocket(4, 0); // SOCKVERSION = 4
+        // Show initial login prompt
+        if (this.state.phase === 'login') {
+          this.state.warningText = 'Press ENTER to begin login';
+          this.state.warningTime = Date.now();
+        }
+        this.onStateUpdate();
+      }, 0);
     };
 
     this.ws.onmessage = (event) => {
@@ -219,6 +227,14 @@ export class NetrekConnection {
   private handlePacket(name: string, view: DataView) {
     const s = this.state;
 
+    // Log non-MOTD, non-PL_LOGIN, non-PLAYER packets for debugging
+    if (name !== 'MOTD' && name !== 'PL_LOGIN' && name !== 'PLAYER' && 
+        name !== 'PLAYER_INFO' && name !== 'KILLS' && name !== 'FLAGS' &&
+        name !== 'HOSTILE' && name !== 'PLANET' && name !== 'PLANET_LOC' &&
+        name !== 'STATS') {
+      console.log(`[net] Packet: ${name}`);
+    }
+
     switch (name) {
       case 'MOTD': {
         const fields = unpack(SP.MOTD.format, view);
@@ -298,12 +314,16 @@ export class NetrekConnection {
         }
         s.players[pnum].status = status;
 
-        // Update our phase
-        if (pnum === s.myNumber) {
+        // Update our phase (but never override 'login' — that must finish via SP_LOGIN)
+        if (pnum === s.myNumber && s.phase !== 'login') {
+          const oldPhase = s.phase;
           if (status === PALIVE) s.phase = 'alive';
           else if (status === POUTFIT) s.phase = 'outfit';
           else if (status === PDEAD || status === PEXPLODE) s.phase = 'dead';
           else if (status === POBSERV) s.phase = 'observe';
+          if (s.phase !== oldPhase) {
+            console.log(`[net] Phase: ${oldPhase} → ${s.phase} (pnum=${pnum}, status=${status})`);
+          }
         }
         break;
       }
@@ -441,14 +461,24 @@ export class NetrekConnection {
 
       case 'LOGIN': {
         const f = unpack(SP.LOGIN.format, view);
-        // f[1] = accept flag
+        const accept = f[1] as number;
+        console.log(`[net] SP_LOGIN accept=${accept}`);
         s.motdComplete = true;
+        if (accept && s.phase === 'login') {
+          s.phase = 'outfit';
+          console.log('[net] Phase: login → outfit (from SP_LOGIN)');
+        } else if (!accept) {
+          s.warningText = 'Login rejected. Try "guest" or check name/password.';
+          s.warningTime = Date.now();
+          console.log('[net] Login rejected by server');
+        }
         break;
       }
 
       case 'MASK': {
         const f = unpack(SP.MASK.format, view);
         s.teamMask = f[1] as number;
+        console.log(`[net] SP_MASK teamMask=${s.teamMask} (0x${s.teamMask.toString(16)})`);
         break;
       }
 
@@ -538,8 +568,9 @@ export class NetrekConnection {
     }
   }
 
-  sendSocket(version: number, _udpPort: number) {
-    this.send(pack(CP.SOCKET.format, CP.SOCKET.code, 0, 0, version));
+  sendSocket(version: number, udpVersion: number) {
+    // CP_SOCKET: type(b), version(b), udp_version(b), pad(x), socket(I)
+    this.send(pack(CP.SOCKET.format, CP.SOCKET.code, version, udpVersion, 0));
   }
 
   sendLogin(name: string, password: string, login: string) {
@@ -644,7 +675,9 @@ export class NetrekConnection {
   }
 
   private sendReserved(data: string) {
-    this.send(pack(CP.RESERVED.format, CP.RESERVED.code, data));
+    // CP_RESERVED: type(b), pad(3x), data[16](echo challenge), resp[16](encrypted response)
+    // With CONFIRM=0 in sysdef, resp content doesn't matter — but size must be 36 bytes
+    this.send(pack(CP.RESERVED.format, CP.RESERVED.code, data, data));
   }
 
   sendFeature(type: number, arg1: number, arg2: number, value: number, name: string) {
