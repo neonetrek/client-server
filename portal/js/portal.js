@@ -188,6 +188,93 @@
     }
   };
 
+  // ---------- Community Servers ----------
+  function renderServers() {
+    var servers = window.NEONETREK_SERVERS;
+    if (!servers || !servers.length) return;
+
+    var grid = document.getElementById('servers-grid');
+    if (!grid) return;
+
+    grid.innerHTML = servers.map(function (s, i) {
+      var id = 'srv-' + i;
+      var features = '';
+      if (s.features && s.features.length) {
+        features = '<div class="srv-features">' +
+          s.features.map(function (f) {
+            return '<span class="srv-tag">' + escapeHtml(f) + '</span>';
+          }).join('') + '</div>';
+      }
+      var history = '';
+      if (s.history) {
+        history = '<div class="srv-history" id="' + id + '-history">' +
+          '<p>' + escapeHtml(s.history) + '</p>' +
+          '</div>';
+      }
+      var meta = [];
+      if (s.admin) meta.push('<span class="srv-meta-item">Admin: ' + escapeHtml(s.admin) + '</span>');
+      if (s.established) meta.push('<span class="srv-meta-item">Est. ' + escapeHtml(s.established) + '</span>');
+      var metaHtml = meta.length ? '<div class="srv-meta">' + meta.join('') + '</div>' : '';
+
+      var joinBtn = s.url
+        ? '<a href="' + escapeHtml(s.url) + '/play/" class="btn btn-primary btn-small" target="_blank" rel="noopener">Join</a>'
+        + '<a href="' + escapeHtml(s.url) + '" class="btn btn-outline btn-small" target="_blank" rel="noopener">Portal</a>'
+        : '<span class="srv-join-disabled">No URL</span>';
+
+      var toggleBtn = s.history
+        ? '<button class="srv-toggle" onclick="toggleServerHistory(\'' + id + '\')" aria-expanded="false" aria-controls="' + id + '-history">More info</button>'
+        : '';
+
+      return '<div class="server-card" id="' + id + '">' +
+        '<div class="srv-header">' +
+          '<div class="srv-name">' + escapeHtml(s.name) + '</div>' +
+          '<div class="srv-status">' +
+            '<span class="status-dot status-unknown"></span>' +
+            '<span class="status-text" id="' + id + '-status">Checking\u2026</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="srv-location">&gt; ' + escapeHtml(s.location) + '</div>' +
+        '<div class="srv-desc">' + escapeHtml(s.description) + '</div>' +
+        features +
+        history +
+        metaHtml +
+        '<div class="srv-actions">' + joinBtn + toggleBtn + '</div>' +
+      '</div>';
+    }).join('');
+
+    // Check health of each server
+    servers.forEach(function (s, i) {
+      if (!s.url) return;
+      var id = 'srv-' + i;
+      fetch(s.url + '/health', { mode: 'cors' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var dot = document.querySelector('#' + id + ' .status-dot');
+          var text = document.getElementById(id + '-status');
+          if (dot) { dot.className = 'status-dot status-online'; }
+          var count = data.connections || data.players || data.playerCount || 0;
+          if (text) { text.textContent = 'Online \u00B7 ' + count + ' player' + (count !== 1 ? 's' : ''); }
+        })
+        .catch(function () {
+          var dot = document.querySelector('#' + id + ' .status-dot');
+          var text = document.getElementById(id + '-status');
+          if (dot) { dot.className = 'status-dot status-offline'; }
+          if (text) { text.textContent = 'Offline'; }
+        });
+    });
+  }
+
+  window.toggleServerHistory = function (id) {
+    var el = document.getElementById(id + '-history');
+    var btn = document.querySelector('#' + id + ' .srv-toggle');
+    if (!el) return;
+    var expanded = el.classList.toggle('srv-history-open');
+    if (btn) {
+      btn.textContent = expanded ? 'Less info' : 'More info';
+      btn.setAttribute('aria-expanded', String(expanded));
+    }
+  };
+
   // ---------- Nav ----------
   document.querySelectorAll('.nav-links a').forEach(function (link) {
     link.addEventListener('click', function () {
@@ -200,6 +287,7 @@
     applyConfig();
     fetchStatus();
     fetchLeaderboard();
+    renderServers();
     // Refresh status every 30 seconds
     setInterval(fetchStatus, 30000);
   }

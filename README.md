@@ -41,21 +41,9 @@ docker compose up --build
 
 Then open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### Deploy to Railway
+### Deploy to Railway / Fly.io
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app)
-
-1. Fork this repo
-2. Connect to Railway
-3. Deploy — Railway detects the Dockerfile automatically
-4. Set port to `3000`
-
-### Deploy to Fly.io
-
-```bash
-fly launch
-fly deploy
-```
+See **[HOSTING.md](HOSTING.md)** for detailed deployment guides covering Railway, Fly.io, portal customization, and how to get your server listed in the community directory.
 
 ### Local Development
 
@@ -126,6 +114,7 @@ Conquer all enemy planets by:
 neonetrek/
 ├── Dockerfile           # Multi-stage build
 ├── docker-compose.yml   # Local dev orchestration
+├── HOSTING.md           # Deployment & server listing guide
 ├── supervisord.conf     # Process manager config
 ├── entrypoint.sh        # Container startup
 ├── server/

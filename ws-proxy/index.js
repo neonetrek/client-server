@@ -26,7 +26,9 @@ const PORTAL_DIR = process.env.PORTAL_DIR || path.join(__dirname, '..', 'portal'
 const app = express();
 
 // Health check endpoint for container orchestrators
+// CORS allowed so other NeoNetrek portals can show server status
 app.get('/health', (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
   res.json({
     status: 'ok',
     uptime: process.uptime(),
