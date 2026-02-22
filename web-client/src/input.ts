@@ -13,6 +13,7 @@ import {
   FED, ROM, KLI, ORI,
   SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, STARBASE, SGALAXY,
   MALL, MTEAM, MINDIV,
+  SHIP_STATS,
 } from './constants';
 
 const MAX_LOGIN_LEN = 15; // 16 bytes minus null terminator
@@ -34,6 +35,9 @@ export class InputHandler {
 
   // Help overlay
   private showHelp = false;
+
+  // Arrow-key turning: last direction sent to avoid spamming dupes
+  private lastSentDir = -1;
 
   constructor(net: NetrekConnection, state: GameState, renderer: Renderer) {
     this.net = net;
@@ -65,6 +69,33 @@ export class InputHandler {
     document.addEventListener('keyup', (e) => this.onKeyUp(e));
     canvas.addEventListener('mousedown', (e) => this.onMouseDown(e, canvas));
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  /** Called each render tick to process held arrow keys for continuous turning. */
+  tickHeldKeys() {
+    if (this.chatMode) return;
+    if (this.state.phase !== 'alive') return;
+
+    const me = this.state.players[this.state.myNumber];
+    if (!me) return;
+
+    const left = this.keysDown.has('ArrowLeft');
+    const right = this.keysDown.has('ArrowRight');
+    if (!left && !right) return;
+
+    // Turn step: 4 direction units per tick (256 = full circle)
+    const step = 4;
+    let newDir = me.dir;
+
+    if (left) newDir = (me.dir - step + 256) & 0xFF;
+    if (right) newDir = (me.dir + step) & 0xFF;
+
+    // Dedup: don't resend if we already sent this direction
+    if (newDir === this.lastSentDir) return;
+    this.lastSentDir = newDir;
+
+    this.net.sendDirection(newDir);
+    this.state.desiredDir = newDir;
   }
 
   private onKeyDown(e: KeyboardEvent) {
@@ -235,6 +266,19 @@ export class InputHandler {
     if (key === '!' || key === ')') { this.net.sendSpeed(10); e.preventDefault(); return; }
     if (key === '@') { this.net.sendSpeed(11); e.preventDefault(); return; }
     if (key === '#' || key === '%') { this.net.sendSpeed(12); e.preventDefault(); return; }
+
+    // Arrow keys for relative speed control
+    if (key === 'ArrowUp') {
+      const maxSpeed = SHIP_STATS[me.shipType]?.speed ?? 12;
+      this.net.sendSpeed(Math.min(me.speed + 1, maxSpeed));
+      e.preventDefault();
+      return;
+    }
+    if (key === 'ArrowDown') {
+      this.net.sendSpeed(Math.max(me.speed - 1, 0));
+      e.preventDefault();
+      return;
+    }
 
     switch (key) {
       // Shields toggle
