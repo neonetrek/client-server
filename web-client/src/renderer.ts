@@ -273,7 +273,7 @@ export class Renderer {
     const maxFuel = stats?.fuel ?? 10000;
 
     this.setBar('sh', me.shield, maxShield);
-    this.setBar('hu', me.hull, maxHull);
+    this.setBar('hu', maxHull - me.hull, maxHull);
     this.setBar('fu', me.fuel, maxFuel);
     this.setBar('wt', me.wTemp, 1200);
     this.setBar('et', me.eTemp, 1200);
@@ -786,12 +786,12 @@ export class Renderer {
     ctx.font = '12px monospace';
     ctx.shadowBlur = 4;
 
-    ctx.fillStyle = TEAM_COLORS[FED]; ctx.shadowColor = TEAM_COLORS[FED];
-    ctx.fillText('FED', 8, 16);
     ctx.fillStyle = TEAM_COLORS[ROM]; ctx.shadowColor = TEAM_COLORS[ROM];
-    ctx.fillText('ROM', size - 36, 16);
+    ctx.fillText('ROM', 8, 16);
     ctx.fillStyle = TEAM_COLORS[KLI]; ctx.shadowColor = TEAM_COLORS[KLI];
-    ctx.fillText('KLI', 8, size - 8);
+    ctx.fillText('KLI', size - 36, 16);
+    ctx.fillStyle = TEAM_COLORS[FED]; ctx.shadowColor = TEAM_COLORS[FED];
+    ctx.fillText('FED', 8, size - 8);
     ctx.fillStyle = TEAM_COLORS[ORI]; ctx.shadowColor = TEAM_COLORS[ORI];
     ctx.fillText('ORI', size - 36, size - 8);
     ctx.shadowBlur = 0;

@@ -599,7 +599,9 @@ export class NetrekConnection {
   }
 
   sendOutfit(team: number, ship: number) {
-    this.send(pack(CP.OUTFIT.format, CP.OUTFIT.code, team, ship));
+    // Server expects team INDEX (0=FED,1=ROM,2=KLI,3=ORI), not bitmask
+    const teamIndex = Math.log2(team) | 0;
+    this.send(pack(CP.OUTFIT.format, CP.OUTFIT.code, teamIndex, ship));
   }
 
   sendSpeed(speed: number) {
