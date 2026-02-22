@@ -85,8 +85,10 @@ Added `/health` endpoint returning JSON with status, uptime, connection count, a
 
 ## Test Coverage
 
-- **105 tests** across 4 test files, all passing
+- **248 tests** across 6 test files, all passing
 - Protocol: pack/unpack round-trips, overflow protection, format parsing, 4-byte alignment
 - State: entity creation, initial values, torpedo ownership
 - Constants: team flags, ship stats, dimensions consistency
 - Pack args: all CP packet size/field count verification
+- Net: connection lifecycle, reconnection, packet framing, all SP_* handlers, client senders
+- Input: login state machine, outfit selection, speed/toggle keys, chat mode, mouse input
