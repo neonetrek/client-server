@@ -29,6 +29,36 @@ import { drawShipSVG } from './ships';
 const TAC_RANGE = TWIDTH; // 20000
 const TWO_PI = Math.PI * 2;
 
+// Parallax starfield configuration
+const STAR_TILE_SIZE = 20000; // galactic units — matches tactical range so no visible repeat
+interface Star { x: number; y: number; size: number; brightness: number }
+interface StarLayer { stars: Star[]; parallaxFactor: number; color: string }
+
+function generateStarLayers(): StarLayer[] {
+  // Seeded PRNG (simple LCG) for deterministic star positions
+  let seed = 42;
+  const rand = () => { seed = (seed * 1664525 + 1013904223) & 0x7fffffff; return seed / 0x7fffffff; };
+
+  const layers: StarLayer[] = [
+    { stars: [], parallaxFactor: 0.02, color: '#555' },  // far — dim, slow
+    { stars: [], parallaxFactor: 0.05, color: '#888' },  // mid
+    { stars: [], parallaxFactor: 0.1,  color: '#bbb' },  // near — bright, fast
+  ];
+  const counts = [50, 30, 15]; // stars per tile per layer (tile = full tactical range)
+
+  for (let i = 0; i < layers.length; i++) {
+    for (let j = 0; j < counts[i]; j++) {
+      layers[i].stars.push({
+        x: rand() * STAR_TILE_SIZE,
+        y: rand() * STAR_TILE_SIZE,
+        size: 0.5 + rand() * (i === 2 ? 1.5 : i === 1 ? 1.0 : 0.5),
+        brightness: 0.3 + rand() * 0.7,
+      });
+    }
+  }
+  return layers;
+}
+
 // Pre-computed translucent team colors for planet fill
 const TEAM_COLORS_ALPHA: Record<number, string> = {};
 for (const [team, color] of Object.entries(TEAM_COLORS)) {
@@ -70,6 +100,15 @@ export class Renderer {
   // Message tracking
   private lastMessageCount = 0;
 
+  // Parallax starfield
+  private starLayers: StarLayer[];
+
+  // Smoothed trajectory angles (lerped each frame for smooth transitions)
+  private smoothCurAngle = 0;
+  private smoothTargetAngle = 0;
+  private smoothTurning = false;
+  private trajectoryInited = false;
+
   constructor(
     tacCanvas: HTMLCanvasElement,
     galCanvas: HTMLCanvasElement,
@@ -90,6 +129,7 @@ export class Renderer {
     this.tacCtx = tacCanvas.getContext('2d')!;
     this.galCtx = galCanvas.getContext('2d')!;
 
+    this.starLayers = generateStarLayers();
     this.initStatusBar();
     this.initPlayerListHeader();
   }
@@ -425,6 +465,177 @@ export class Renderer {
   }
 
   // ============================================================
+  // Parallax Starfield & Trajectory Line
+  // ============================================================
+
+  private renderStarfield(ctx: CanvasRenderingContext2D, size: number, playerX: number, playerY: number) {
+    const scale = size / TAC_RANGE;
+    const tilePx = STAR_TILE_SIZE * scale;
+
+    for (const layer of this.starLayers) {
+      const offsetGX = playerX * layer.parallaxFactor;
+      const offsetGY = playerY * layer.parallaxFactor;
+      const tileOffsetX = ((offsetGX % STAR_TILE_SIZE) + STAR_TILE_SIZE) % STAR_TILE_SIZE * scale;
+      const tileOffsetY = ((offsetGY % STAR_TILE_SIZE) + STAR_TILE_SIZE) % STAR_TILE_SIZE * scale;
+      const tilesX = Math.ceil(size / tilePx) + 1;
+      const tilesY = Math.ceil(size / tilePx) + 1;
+
+      for (const star of layer.stars) {
+        const starBasePxX = star.x * scale;
+        const starBasePxY = star.y * scale;
+        // Pre-compute alpha color once per star
+        const a = Math.round(star.brightness * 255);
+        ctx.fillStyle = `rgba(${a},${a},${a},1)`;
+        const d = Math.max(1, Math.round(star.size));
+
+        for (let tx = 0; tx < tilesX; tx++) {
+          const sx = starBasePxX + tx * tilePx - tileOffsetX;
+          if (sx < -d || sx > size + d) continue;
+          for (let ty = 0; ty < tilesY; ty++) {
+            const sy = starBasePxY + ty * tilePx - tileOffsetY;
+            if (sy < -d || sy > size + d) continue;
+            ctx.fillRect(sx, sy, d, d);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Trajectory prediction: smooth curve from current heading to desired heading,
+   * then straight to screen edge. Uses the server's s_turns to scale the curve
+   * length — sluggish ships (BB) curve wider, nimble ships (SC) curve tighter.
+   */
+  private renderTrajectoryLine(ctx: CanvasRenderingContext2D, size: number, me: Player) {
+    if (me.speed <= 0) return;
+
+    const screenCx = size / 2;
+    const screenCy = size / 2;
+
+    // Current heading as canvas angle
+    const curAngle = (me.dir / 256) * TWO_PI - Math.PI / 2;
+    const desDir = this.state.desiredDir;
+
+    // Determine target angle
+    let targetAngle = curAngle;
+    let turning = false;
+    if (desDir >= 0 && desDir !== me.dir) {
+      targetAngle = (desDir / 256) * TWO_PI - Math.PI / 2;
+      // Normalize delta to shortest path
+      let delta = targetAngle - curAngle;
+      if (delta > Math.PI) delta -= TWO_PI;
+      if (delta < -Math.PI) delta += TWO_PI;
+      targetAngle = curAngle + delta;
+      turning = true;
+    }
+
+    // --- Smooth transitions via angle lerping ---
+    if (!this.trajectoryInited) {
+      this.smoothCurAngle = curAngle;
+      this.smoothTargetAngle = targetAngle;
+      this.smoothTurning = turning;
+      this.trajectoryInited = true;
+    }
+
+    // Lerp factor — higher = faster transition (0.15 = ~6 frames to settle)
+    const lerpRate = 0.15;
+
+    // Lerp current angle (shortest path on circle)
+    let dCur = curAngle - this.smoothCurAngle;
+    if (dCur > Math.PI) dCur -= TWO_PI;
+    if (dCur < -Math.PI) dCur += TWO_PI;
+    this.smoothCurAngle += dCur * lerpRate;
+
+    // Lerp target angle
+    let dTgt = targetAngle - this.smoothTargetAngle;
+    if (dTgt > Math.PI) dTgt -= TWO_PI;
+    if (dTgt < -Math.PI) dTgt += TWO_PI;
+    this.smoothTargetAngle += dTgt * lerpRate;
+
+    // Smooth the turning flag — blend curve steps toward 0 when not turning
+    this.smoothTurning = turning || Math.abs(dTgt) > 0.02;
+
+    const useCurAngle = this.smoothCurAngle;
+    const useTargetAngle = this.smoothTargetAngle;
+    const useTurning = this.smoothTurning;
+
+    // Build path as polyline
+    const stepSize = 3; // pixels per step
+    const totalSteps = Math.ceil((size * 0.85) / stepSize);
+
+    // Remaining angle delta drives curve length
+    let smoothDelta = useTargetAngle - useCurAngle;
+    if (smoothDelta > Math.PI) smoothDelta -= TWO_PI;
+    if (smoothDelta < -Math.PI) smoothDelta += TWO_PI;
+    const absSmoothDelta = Math.abs(smoothDelta);
+
+    // Curve length scales with BOTH turn angle and speed:
+    // - bigger turn = longer curve (proportional to delta)
+    // - higher speed = longer curve (more distance covered during turn)
+    // At speed 9 + 180-degree turn: ~60% of total path is curved
+    // At speed 2 + 45-degree turn: ~8% of total path is curved
+    const curveSteps = useTurning && absSmoothDelta > 0.01
+      ? Math.max(20, Math.round(
+          totalSteps * 0.6 * (absSmoothDelta / Math.PI) * Math.min(1.5, me.speed / 6)
+        ))
+      : 0;
+
+    let x = screenCx;
+    let y = screenCy;
+    const points: { x: number; y: number }[] = [{ x, y }];
+
+    for (let i = 1; i <= totalSteps; i++) {
+      let angle: number;
+      if (curveSteps > 0 && i <= curveSteps) {
+        const t = i / curveSteps;
+        const eased = t * t * (3 - 2 * t);
+        angle = useCurAngle + smoothDelta * eased;
+      } else {
+        angle = curveSteps > 0 ? useTargetAngle : useCurAngle;
+      }
+
+      x += Math.cos(angle) * stepSize;
+      y += Math.sin(angle) * stepSize;
+      points.push({ x, y });
+
+      if (x < -20 || x > size + 20 || y < -20 || y > size + 20) break;
+    }
+
+    if (points.length < 2) return;
+
+    // Draw with oscilloscope glow (3-pass)
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+
+    // Wide outer bloom
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.02)';
+    ctx.lineWidth = 24;
+    ctx.shadowBlur = 40;
+    ctx.shadowColor = 'rgba(0, 255, 0, 0.3)';
+    ctx.stroke();
+
+    // Mid glow
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.03)';
+    ctx.lineWidth = 10;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = 'rgba(0, 255, 0, 0.4)';
+    ctx.stroke();
+
+    // Faint core
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.12)';
+    ctx.lineWidth = 1;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = 'rgba(0, 255, 0, 0.6)';
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // ============================================================
   // Tactical View
   // ============================================================
 
@@ -450,6 +661,9 @@ export class Renderer {
 
     const cx = me.x;
     const cy = me.y;
+
+    // Parallax starfield (behind everything)
+    this.renderStarfield(ctx, size, cx, cy);
 
     // Draw grid lines (every 5000 galactic units) - CRT subtle glow
     ctx.strokeStyle = '#111';
@@ -594,6 +808,9 @@ export class Renderer {
       ctx.lineWidth = 1;
       ctx.shadowBlur = 0;
     }
+
+    // Trajectory line (behind ships, on top of projectiles)
+    this.renderTrajectoryLine(ctx, size, me);
 
     // Draw ships
     ctx.textAlign = 'center';

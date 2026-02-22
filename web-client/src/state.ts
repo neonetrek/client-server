@@ -112,6 +112,9 @@ export interface GameState {
   // Server info
   queuePos: number;
 
+  // Client-side desired direction (set by input handler for trajectory arc)
+  desiredDir: number; // -1 = no pending turn, 0-255 = target direction
+
   // Ping / latency
   lastPingTime: number;
   latencyMs: number;
@@ -183,6 +186,7 @@ export function createGameState(): GameState {
     messages: [],
     warningText: '',
     warningTime: 0,
+    desiredDir: -1,
     queuePos: -1,
     lastPingTime: 0,
     latencyMs: -1,

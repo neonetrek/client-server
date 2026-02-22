@@ -415,6 +415,7 @@ export class InputHandler {
 
     if (e.button === 0) {
       // Left click: set course
+      this.state.desiredDir = dir;
       this.net.sendDirection(dir);
     } else if (e.button === 1) {
       // Middle click: fire phaser

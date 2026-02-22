@@ -132,16 +132,17 @@ export interface ShipStats {
   shields: number;
   hull: number;
   fuel: number;
+  turns: number;   // server s_turns value for turn rate calculation
 }
 
 export const SHIP_STATS: Record<number, ShipStats> = {
-  [SCOUT]:      { speed: 12, maxArmies: 2,  shields: 75,  hull: 75,  fuel: 5000  },
-  [DESTROYER]:  { speed: 10, maxArmies: 5,  shields: 85,  hull: 85,  fuel: 7000  },
-  [CRUISER]:    { speed: 9,  maxArmies: 10, shields: 100, hull: 100, fuel: 10000 },
-  [BATTLESHIP]: { speed: 8,  maxArmies: 6,  shields: 130, hull: 130, fuel: 14000 },
-  [ASSAULT]:    { speed: 8,  maxArmies: 20, shields: 80,  hull: 200, fuel: 6000  },
-  [STARBASE]:   { speed: 2,  maxArmies: 25, shields: 500, hull: 600, fuel: 60000 },
-  [SGALAXY]:    { speed: 9,  maxArmies: 10, shields: 100, hull: 100, fuel: 12000 },
+  [SCOUT]:      { speed: 12, maxArmies: 2,  shields: 75,  hull: 75,  fuel: 5000,  turns: 570000 },
+  [DESTROYER]:  { speed: 10, maxArmies: 5,  shields: 85,  hull: 85,  fuel: 7000,  turns: 310000 },
+  [CRUISER]:    { speed: 9,  maxArmies: 10, shields: 100, hull: 100, fuel: 10000, turns: 170000 },
+  [BATTLESHIP]: { speed: 8,  maxArmies: 6,  shields: 130, hull: 130, fuel: 14000, turns: 75000  },
+  [ASSAULT]:    { speed: 8,  maxArmies: 20, shields: 80,  hull: 200, fuel: 6000,  turns: 120000 },
+  [STARBASE]:   { speed: 2,  maxArmies: 25, shields: 500, hull: 600, fuel: 60000, turns: 50000  },
+  [SGALAXY]:    { speed: 9,  maxArmies: 10, shields: 100, hull: 100, fuel: 12000, turns: 85000  },
 };
 
 // Planet flags

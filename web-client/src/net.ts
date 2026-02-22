@@ -300,6 +300,10 @@ export class NetrekConnection {
         p.speed = f[3] as number;
         p.x = f[4] as number;
         p.y = f[5] as number;
+        // Clear desired direction once server confirms turn complete
+        if (pnum === s.myNumber && s.desiredDir >= 0 && p.dir === s.desiredDir) {
+          s.desiredDir = -1;
+        }
         break;
       }
 
