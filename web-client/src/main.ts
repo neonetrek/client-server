@@ -10,6 +10,7 @@ import { createGameState } from './state';
 import { NetrekConnection } from './net';
 import { Renderer } from './renderer';
 import { InputHandler } from './input';
+import { LoginFormController } from './login-form';
 import { REDRAW_RATE } from './constants';
 
 // Create game state
@@ -26,10 +27,20 @@ const messagePanelEl = document.getElementById('message-panel')!;
 // Create renderer with all panel elements
 const renderer = new Renderer(tacCanvas, galCanvas, state, statusBarEl, playerListEl, messagePanelEl);
 
+// Forward-declared so onStateUpdate can reference it (initialized after net)
+let loginForm: LoginFormController;
+
 // State update callback - triggers re-render
 let needsRender = true;
 function onStateUpdate() {
   needsRender = true;
+  // Hide login form when game transitions past login phase
+  if (loginForm) {
+    if (state.phase !== 'login') {
+      loginForm.hide();
+    }
+    renderer.loginFormVisible = loginForm.isVisible;
+  }
   updateStatus();
 }
 
@@ -39,6 +50,10 @@ const net = new NetrekConnection(state, onStateUpdate);
 // Create input handler
 const input = new InputHandler(net, state, renderer);
 input.setup(tacCanvas);
+
+// Create login form controller and wire to input handler
+loginForm = new LoginFormController(net, state, () => input.setLoginDone());
+input.loginForm = loginForm;
 
 // Reset input state on reconnect so login flow works again
 net.setReconnectCallback(() => input.resetLoginState());

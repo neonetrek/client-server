@@ -89,12 +89,27 @@ function mouseEvent(button: number, clientX: number, clientY: number): MouseEven
 }
 
 // ============================================================
+// Mock LoginFormController
+// ============================================================
+
+function createMockLoginForm() {
+  return {
+    show: vi.fn(),
+    hide: vi.fn(),
+    reset: vi.fn(),
+    clearPassword: vi.fn(),
+    isVisible: false,
+  };
+}
+
+// ============================================================
 // Test setup
 // ============================================================
 
 let state: GameState;
 let net: ReturnType<typeof createMockNet>;
 let renderer: ReturnType<typeof createMockRenderer>;
+let mockLoginForm: ReturnType<typeof createMockLoginForm>;
 let handler: InputHandler;
 
 /** Access private onKeyDown */
@@ -119,7 +134,9 @@ describe('InputHandler', () => {
     state = createGameState();
     net = createMockNet();
     renderer = createMockRenderer();
+    mockLoginForm = createMockLoginForm();
     handler = new InputHandler(net, state, renderer);
+    handler.loginForm = mockLoginForm as any;
     state.connected = true;
   });
 
@@ -139,92 +156,37 @@ describe('InputHandler', () => {
       expect((handler as any).loginState).toBe('waiting');
     });
 
-    it('Enter transitions waiting → enterName', () => {
+    it('Enter transitions waiting → formActive and shows form', () => {
       keyDown('Enter');
-      expect((handler as any).loginState).toBe('enterName');
-      expect(state.warningText).toContain('name');
+      expect((handler as any).loginState).toBe('formActive');
+      expect(mockLoginForm.show).toHaveBeenCalled();
     });
 
     it('non-Enter keys are ignored in waiting state', () => {
       keyDown('a');
       expect((handler as any).loginState).toBe('waiting');
+      expect(mockLoginForm.show).not.toHaveBeenCalled();
     });
 
-    it('accumulates characters in enterName', () => {
-      keyDown('Enter'); // → enterName
-      keyDown('B');
-      keyDown('o');
-      keyDown('b');
-      expect((handler as any).inputBuffer).toBe('Bob');
-      expect(state.warningText).toContain('Bob');
+    it('keys are ignored when login form is visible', () => {
+      mockLoginForm.isVisible = true;
+      keyDown('a');
+      // onKeyDown returns early, so nothing happens
+      expect(net.sendSpeed).not.toHaveBeenCalled();
     });
 
-    it('backspace removes last character in enterName', () => {
+    it('retry on rejection: Enter in done state re-shows form', () => {
+      // Get to done state
+      handler.setLoginDone();
+      // phase stays login (server rejected)
       keyDown('Enter');
-      keyDown('B');
-      keyDown('o');
-      keyDown('Backspace');
-      expect((handler as any).inputBuffer).toBe('B');
-    });
-
-    it('enforces 15-char limit on name', () => {
-      keyDown('Enter');
-      for (let i = 0; i < 20; i++) keyDown('a');
-      expect((handler as any).inputBuffer.length).toBe(15);
-    });
-
-    it('defaults to guest on empty name', () => {
-      keyDown('Enter'); // → enterName
-      keyDown('Enter'); // → enterPassword (name = guest)
-      expect((handler as any).userName).toBe('guest');
-    });
-
-    it('Enter transitions enterName → enterPassword', () => {
-      keyDown('Enter');
-      keyDown('t');
-      keyDown('e');
-      keyDown('s');
-      keyDown('t');
-      keyDown('Enter'); // → enterPassword
-      expect((handler as any).loginState).toBe('enterPassword');
-      expect((handler as any).userName).toBe('test');
-      expect(state.warningText).toContain('password');
-    });
-
-    it('password is masked in display', () => {
-      keyDown('Enter'); // → enterName
-      keyDown('Enter'); // → enterPassword
-      keyDown('s');
-      keyDown('e');
-      keyDown('c');
-      expect(state.warningText).toContain('***');
-      expect(state.warningText).not.toContain('sec');
-    });
-
-    it('Enter in enterPassword sends login and transitions to done', () => {
-      keyDown('Enter'); // → enterName
-      keyDown('Enter'); // → enterPassword
-      keyDown('p');
-      keyDown('w');
-      keyDown('Enter'); // → done
-      expect((handler as any).loginState).toBe('done');
-      expect(net.sendLogin).toHaveBeenCalledWith('guest', 'pw', 'guest');
-      expect(net.sendUpdates).toHaveBeenCalled();
-    });
-
-    it('retry on rejection: Enter in done state restarts enterName', () => {
-      keyDown('Enter'); // → enterName
-      keyDown('Enter'); // → enterPassword
-      keyDown('Enter'); // → done
-      // Simulate server rejection (phase stays login)
-      keyDown('Enter'); // retry
-      expect((handler as any).loginState).toBe('enterName');
+      expect((handler as any).loginState).toBe('formActive');
+      expect(mockLoginForm.clearPassword).toHaveBeenCalled();
+      expect(mockLoginForm.show).toHaveBeenCalled();
     });
 
     it('delegates to outfit when done and phase=outfit', () => {
-      keyDown('Enter'); // → enterName
-      keyDown('Enter'); // → enterPassword
-      keyDown('Enter'); // → done
+      handler.setLoginDone();
       state.phase = 'outfit';
       state.teamMask = FED;
       keyDown('f');
@@ -237,20 +199,9 @@ describe('InputHandler', () => {
       expect((handler as any).loginState).toBe('waiting');
     });
 
-    it('backspace in enterPassword removes character', () => {
-      keyDown('Enter'); // → enterName
-      keyDown('Enter'); // → enterPassword
-      keyDown('a');
-      keyDown('b');
-      keyDown('Backspace');
-      expect((handler as any).inputBuffer).toBe('a');
-    });
-
-    it('enforces 15-char limit on password', () => {
-      keyDown('Enter'); // → enterName
-      keyDown('Enter'); // → enterPassword
-      for (let i = 0; i < 20; i++) keyDown('x');
-      expect((handler as any).inputBuffer.length).toBe(15);
+    it('setLoginDone sets state to done', () => {
+      handler.setLoginDone();
+      expect((handler as any).loginState).toBe('done');
     });
   });
 
@@ -664,21 +615,16 @@ describe('InputHandler', () => {
   // ============================================================
   describe('resetLoginState', () => {
     it('resets all login and chat state', () => {
-      // Set up some state
-      keyDown('Enter'); // waiting → enterName
-      keyDown('a');
-      state.phase = 'alive';
-      state.myNumber = 0;
-      state.players[0].flags = 0;
-      keyDown(';'); // won't work in login, but let's reset from any state
+      // Get to formActive state
+      state.phase = 'login';
+      keyDown('Enter'); // waiting → formActive
 
       handler.resetLoginState();
       expect((handler as any).loginState).toBe('waiting');
-      expect((handler as any).inputBuffer).toBe('');
-      expect((handler as any).userName).toBe('');
-      expect((handler as any).userPassword).toBe('');
       expect(handler.isChatting).toBe(false);
       expect(handler.chatText).toBe('');
+      expect(mockLoginForm.reset).toHaveBeenCalled();
+      expect(mockLoginForm.hide).toHaveBeenCalled();
     });
   });
 });

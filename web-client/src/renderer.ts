@@ -13,7 +13,7 @@ import {
   TMOVE, TEXPLODE,
   PTMOVE, PTEXPLODE,
   PHMISS, PHHIT, PHHIT2,
-  PFSHIELD, PFCLOAK, PFORBIT, PFREPAIR, PFBOMB,
+  PFSHIELD, PFCLOAK, PFORBIT, PFREPAIR, PFBOMB, PFTRACT, PFPRESS,
   PFGREEN, PFYELLOW, PFRED,
   PLREPAIR, PLFUEL, PLAGRI, PLHOME,
   TEAM_COLORS, TEAM_LETTERS, SHIP_SHORT, SHIP_STATS,
@@ -79,6 +79,7 @@ export class Renderer {
   private state: GameState;
   private _canvasSize: number;
   private _showHelp = false;
+  loginFormVisible = false;
 
   // HTML panel elements
   private statusBarEl: HTMLElement;
@@ -102,6 +103,10 @@ export class Renderer {
 
   // Parallax starfield
   private starLayers: StarLayer[];
+
+  // Ship visual effect state
+  private bankAngles = new Float32Array(32);
+  private shieldHitTime = new Float64Array(32);
 
   // Smoothed trajectory angles (lerped each frame for smooth transitions)
   private smoothCurAngle = 0;
@@ -318,7 +323,10 @@ export class Renderer {
     this.setBar('wt', me.wTemp, 1200);
     this.setBar('et', me.eTemp, 1200);
 
-    this.speedEl.textContent = `Spd:${me.speed}`;
+    const ds = this.state.desiredSpeed;
+    this.speedEl.textContent = (ds >= 0 && ds !== me.speed)
+      ? `Spd:${me.speed}\u2192${ds}`
+      : `Spd:${me.speed}`;
     this.armiesEl.textContent = `Arm:${me.armies}`;
     this.killsEl.textContent = `K:${me.kills.toFixed(2)}`;
 
@@ -653,7 +661,7 @@ export class Renderer {
     ctx.fillRect(0, 0, size, size);
 
     const me = s.myNumber >= 0 ? s.players[s.myNumber] : null;
-    if (!me || me.status === PFREE) {
+    if (!me || me.status === PFREE || s.phase === 'login') {
       this.renderMOTD(ctx, size);
       ctx.restore();
       return;
@@ -701,52 +709,120 @@ export class Renderer {
     }
     ctx.textAlign = 'left';
 
-    // Draw torpedoes - batched by color, with CRT glow
-    const torpsByColor = new Map<string, {sx: number, sy: number}[]>();
-    const torpExplodes: {sx: number, sy: number}[] = [];
+    // Draw torpedoes — TNG photon torpedo style with glowing orbs and motion trails
+    const torpNow = Date.now();
     for (const torp of s.torps) {
       if (torp.status === TMOVE) {
         const sx = (torp.x - cx + TAC_RANGE / 2) * scale;
         const sy = (torp.y - cy + TAC_RANGE / 2) * scale;
-        if (sx < -5 || sx > size + 5 || sy < -5 || sy > size + 5) continue;
+        if (sx < -20 || sx > size + 20 || sy < -20 || sy > size + 20) continue;
+
         const owner = torp.owner >= 0 && torp.owner < MAXPLAYER ? s.players[torp.owner] : null;
-        const color = owner && owner.number === s.myNumber
-          ? '#fff'
-          : (TEAM_COLORS[owner?.team ?? IND] ?? '#888');
-        let batch = torpsByColor.get(color);
-        if (!batch) { batch = []; torpsByColor.set(color, batch); }
-        batch.push({sx, sy});
+        const isOwn = owner !== null && owner.number === s.myNumber;
+        const teamColor = TEAM_COLORS[owner?.team ?? IND] ?? '#888';
+
+        // Base color: own torps warm orange-white, enemy torps team-colored
+        const baseR = isOwn ? 255 : parseInt(teamColor.slice(1, 3), 16);
+        const baseG = isOwn ? 170 : parseInt(teamColor.slice(3, 5), 16);
+        const baseB = isOwn ? 60  : parseInt(teamColor.slice(5, 7), 16);
+        const brightR = Math.min(255, baseR + 80);
+        const brightG = Math.min(255, baseG + 80);
+        const brightB = Math.min(255, baseB + 80);
+
+        // Direction for trail (opposite of travel direction)
+        const dirRad = (torp.dir / 256) * TWO_PI - Math.PI / 2;
+        const trailDx = -Math.cos(dirRad);
+        const trailDy = -Math.sin(dirRad);
+
+        // Per-torp pulsing phase
+        const phase = torpNow * 0.008 + torp.number;
+        const pulse = Math.sin(phase) * 0.3 + 1.0; // 0.7–1.3
+
+        // Layer 1: Motion trail — ghost circles behind the torp
+        ctx.shadowBlur = 0;
+        for (let i = 1; i <= 3; i++) {
+          const dist = i * 5;
+          const gx = sx + trailDx * dist;
+          const gy = sy + trailDy * dist;
+          const alpha = 0.3 - i * 0.08;
+          const radius = 2.5 - i * 0.5;
+          ctx.fillStyle = `rgba(${baseR},${baseG},${baseB},${alpha})`;
+          ctx.beginPath();
+          ctx.arc(gx, gy, Math.max(radius, 0.5), 0, TWO_PI);
+          ctx.fill();
+        }
+
+        // Layer 2: Light shafts — spiky rays radiating from center (signature TNG look)
+        const shaftCount = 5;
+        const shaftRotation = torpNow * 0.001 + torp.number * 1.5;
+        ctx.lineWidth = 1;
+        for (let i = 0; i < shaftCount; i++) {
+          const angle = shaftRotation + (i / shaftCount) * TWO_PI;
+          const length = (8 + Math.sin(phase + i) * 3) * pulse;
+          const ex = sx + Math.cos(angle) * length;
+          const ey = sy + Math.sin(angle) * length;
+          const grad = ctx.createLinearGradient(sx, sy, ex, ey);
+          grad.addColorStop(0, `rgba(${brightR},${brightG},${brightB},0.6)`);
+          grad.addColorStop(1, `rgba(${brightR},${brightG},${brightB},0)`);
+          ctx.strokeStyle = grad;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
+        }
+
+        // Layer 3: Outer halo — radial gradient, transparent center to team-tinted edge
+        const haloRadius = 6 * pulse;
+        const haloGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, haloRadius);
+        haloGrad.addColorStop(0, `rgba(${baseR},${baseG},${baseB},0)`);
+        haloGrad.addColorStop(0.4, `rgba(${baseR},${baseG},${baseB},0.15)`);
+        haloGrad.addColorStop(1, `rgba(${baseR},${baseG},${baseB},0.3)`);
+        ctx.fillStyle = haloGrad;
+        ctx.beginPath();
+        ctx.arc(sx, sy, haloRadius, 0, TWO_PI);
+        ctx.fill();
+
+        // Layer 4: Bright core — near-white hot center with glow
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = `rgb(${baseR},${baseG},${baseB})`;
+        ctx.fillStyle = isOwn ? '#fff8e0' : `rgb(${brightR},${brightG},${brightB})`;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 2, 0, TWO_PI);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
       } else if (torp.status === TEXPLODE) {
         const sx = (torp.x - cx + TAC_RANGE / 2) * scale;
         const sy = (torp.y - cy + TAC_RANGE / 2) * scale;
-        torpExplodes.push({sx, sy});
+        if (sx < -20 || sx > size + 20 || sy < -20 || sy > size + 20) continue;
+
+        const owner = torp.owner >= 0 && torp.owner < MAXPLAYER ? s.players[torp.owner] : null;
+        const isOwn = owner !== null && owner.number === s.myNumber;
+        const teamColor = TEAM_COLORS[owner?.team ?? IND] ?? '#888';
+        const r = isOwn ? 255 : parseInt(teamColor.slice(1, 3), 16);
+        const g = isOwn ? 170 : parseInt(teamColor.slice(3, 5), 16);
+        const b = isOwn ? 60  : parseInt(teamColor.slice(5, 7), 16);
+
+        // Layer 1: Glow sphere — radial gradient burst
+        const glowGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, 10);
+        glowGrad.addColorStop(0, `rgba(${Math.min(255, r + 100)},${Math.min(255, g + 100)},${Math.min(255, b + 100)},0.9)`);
+        glowGrad.addColorStop(0.5, `rgba(${r},${g},${b},0.4)`);
+        glowGrad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        ctx.fillStyle = glowGrad;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 10, 0, TWO_PI);
+        ctx.fill();
+
+        // Layer 2: Flash core — bright white center
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = `rgb(${r},${g},${b})`;
+        ctx.fillStyle = '#ffffffee';
+        ctx.beginPath();
+        ctx.arc(sx, sy, 4, 0, TWO_PI);
+        ctx.fill();
+        ctx.shadowBlur = 0;
       }
     }
-    // Draw each color batch with glow
-    for (const [color, positions] of torpsByColor) {
-      ctx.fillStyle = color;
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = color;
-      ctx.beginPath();
-      for (const p of positions) {
-        ctx.moveTo(p.sx + 2, p.sy);
-        ctx.arc(p.sx, p.sy, 2, 0, TWO_PI);
-      }
-      ctx.fill();
-    }
-    // Draw torp explosions
-    if (torpExplodes.length > 0) {
-      ctx.fillStyle = '#ff8800';
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = '#ff8800';
-      ctx.beginPath();
-      for (const p of torpExplodes) {
-        ctx.moveTo(p.sx + 5, p.sy);
-        ctx.arc(p.sx, p.sy, 5, 0, TWO_PI);
-      }
-      ctx.fill();
-    }
-    ctx.shadowBlur = 0;
 
     // Draw plasmas
     for (const plasma of s.plasmas) {
@@ -773,7 +849,7 @@ export class Renderer {
     }
     ctx.shadowBlur = 0;
 
-    // Draw phasers (500ms display duration) - bright CRT glow
+    // Draw phasers — Star Trek style layered beam with fade-out
     const PHASER_DISPLAY_MS = 500;
     const now = Date.now();
     for (const phaser of s.phasers) {
@@ -787,26 +863,133 @@ export class Renderer {
       const sy1 = (owner.y - cy + TAC_RANGE / 2) * scale;
       let sx2: number, sy2: number;
 
-      if (phaser.status === PHHIT || phaser.status === PHHIT2) {
+      if (phaser.status === PHHIT) {
+        const target = phaser.target >= 0 && phaser.target < MAXPLAYER ? s.players[phaser.target] : null;
+        if (!target) continue;
+        sx2 = (target.x - cx + TAC_RANGE / 2) * scale;
+        sy2 = (target.y - cy + TAC_RANGE / 2) * scale;
+      } else if (phaser.status === PHHIT2) {
         sx2 = (phaser.x - cx + TAC_RANGE / 2) * scale;
         sy2 = (phaser.y - cy + TAC_RANGE / 2) * scale;
       } else {
         const angle = (phaser.dir / 256) * TWO_PI - Math.PI / 2;
-        sx2 = sx1 + Math.cos(angle) * 200;
-        sy2 = sy1 + Math.sin(angle) * 200;
+        const phaserRange = 6000 * scale;
+        sx2 = sx1 + Math.cos(angle) * phaserRange;
+        sy2 = sy1 + Math.sin(angle) * phaserRange;
       }
 
-      const phaserColor = phaser.number === s.myNumber ? '#00ff00' : (TEAM_COLORS[owner.team] ?? '#888');
-      ctx.strokeStyle = phaserColor;
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = phaserColor;
+      // Fade: bright flash then decay
+      const elapsed = now - phaser.fuseStart;
+      const t = elapsed / PHASER_DISPLAY_MS;
+      // Quick flash in first 10%, then smooth decay
+      const intensity = t < 0.1 ? 1.0 : 1.0 - (t - 0.1) / 0.9;
+      const alpha = intensity * intensity; // quadratic falloff
+
+      const isOwn = phaser.number === s.myNumber;
+      // TNG-style orange/amber for own, team color for others
+      const baseR = isOwn ? 255 : 255;
+      const baseG = isOwn ? 160 : 100;
+      const baseB = isOwn ? 40 : 40;
+      const teamColor = TEAM_COLORS[owner.team] ?? '#888';
+
+      ctx.save();
+      ctx.lineCap = 'round';
+
+      // Layer 1: wide outer glow
+      ctx.strokeStyle = isOwn
+        ? `rgba(${baseR}, ${baseG}, ${baseB}, ${alpha * 0.15})`
+        : teamColor.replace(')', `, ${alpha * 0.15})`).replace('rgb(', 'rgba(').replace('#', '');
+      // Use team color for outer glow on enemy phasers
+      if (!isOwn) {
+        ctx.strokeStyle = `rgba(${baseR}, ${baseG}, ${baseB}, ${alpha * 0.12})`;
+      }
+      ctx.strokeStyle = `rgba(${baseR}, ${baseG}, ${baseB}, ${alpha * 0.15})`;
+      ctx.shadowBlur = 30 * intensity;
+      ctx.shadowColor = `rgba(${baseR}, ${baseG}, ${baseB}, ${alpha * 0.5})`;
+      ctx.lineWidth = 12 * intensity;
+      ctx.beginPath();
+      ctx.moveTo(sx1, sy1);
+      ctx.lineTo(sx2, sy2);
+      ctx.stroke();
+
+      // Layer 2: mid beam
+      ctx.strokeStyle = `rgba(${baseR}, ${baseG}, ${baseB}, ${alpha * 0.5})`;
+      ctx.shadowBlur = 15 * intensity;
+      ctx.shadowColor = `rgba(${baseR}, ${Math.min(baseG + 60, 255)}, ${baseB}, ${alpha})`;
+      ctx.lineWidth = 5 * intensity;
+      ctx.beginPath();
+      ctx.moveTo(sx1, sy1);
+      ctx.lineTo(sx2, sy2);
+      ctx.stroke();
+
+      // Layer 3: bright core
+      const coreR = Math.min(baseR + 80, 255);
+      const coreG = Math.min(baseG + 120, 255);
+      const coreB = Math.min(baseB + 100, 255);
+      ctx.strokeStyle = `rgba(${coreR}, ${coreG}, ${coreB}, ${alpha * 0.9})`;
+      ctx.shadowBlur = 6 * intensity;
+      ctx.shadowColor = `rgba(255, 255, 200, ${alpha})`;
+      ctx.lineWidth = 2 * intensity;
+      ctx.beginPath();
+      ctx.moveTo(sx1, sy1);
+      ctx.lineTo(sx2, sy2);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // --- #4 Tractor/pressor beams ---
+    for (const player of s.players) {
+      if (player.status !== PALIVE) continue;
+      if (!(player.flags & (PFTRACT | PFPRESS))) continue;
+      const target = player.tractTarget;
+      if (target < 0 || target >= MAXPLAYER) continue;
+      const tp = s.players[target];
+      if (tp.status !== PALIVE) continue;
+
+      const sx1 = (player.x - cx + TAC_RANGE / 2) * scale;
+      const sy1 = (player.y - cy + TAC_RANGE / 2) * scale;
+      const sx2 = (tp.x - cx + TAC_RANGE / 2) * scale;
+      const sy2 = (tp.y - cy + TAC_RANGE / 2) * scale;
+
+      const isPressor = !!(player.flags & PFPRESS);
+      const beamColor = isPressor ? 'rgba(255, 0, 0,' : 'rgba(0, 255, 0,';
+
+      ctx.save();
+      ctx.lineCap = 'round';
+
+      // Layer 1: wide glow
+      ctx.strokeStyle = `${beamColor} 0.08)`;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = `${beamColor} 0.3)`;
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(sx1, sy1);
+      ctx.lineTo(sx2, sy2);
+      ctx.stroke();
+
+      // Layer 2: core
+      ctx.strokeStyle = `${beamColor} 0.4)`;
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = `${beamColor} 0.6)`;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(sx1, sy1);
       ctx.lineTo(sx2, sy2);
       ctx.stroke();
+
+      // Layer 3: dashed bright center
+      ctx.strokeStyle = `${beamColor} 0.7)`;
+      ctx.shadowBlur = 2;
       ctx.lineWidth = 1;
-      ctx.shadowBlur = 0;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(sx1, sy1);
+      ctx.lineTo(sx2, sy2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.restore();
     }
 
     // Trajectory line (behind ships, on top of projectiles) — only when alive
@@ -854,39 +1037,269 @@ export class Renderer {
   private drawTacShip(ctx: CanvasRenderingContext2D, player: Player, sx: number, sy: number) {
     const isMe = player.number === this.state.myNumber;
     const color = isMe ? '#fff' : (TEAM_COLORS[player.team] ?? '#888');
+    const now = Date.now();
+    const stats = SHIP_STATS[player.shipType];
+    const maxShield = stats?.shields ?? 100;
+    const maxHull = stats?.hull ?? 100;
+    const maxFuel = stats?.fuel ?? 10000;
 
-    // Cloak transparency
+    // --- #3 Cloak shimmer (replaces simple globalAlpha=0.3) ---
     if (player.flags & PFCLOAK) {
-      ctx.globalAlpha = 0.3;
+      // Time-bucketed alpha jitter (changes every ~150ms)
+      const bucket = Math.floor(now / 150);
+      const hash = ((bucket * 2654435761) >>> 0) / 4294967296;
+      ctx.globalAlpha = 0.15 + hash * 0.25;
+
+      // ~20% chance of green static noise
+      if (Math.random() < 0.2) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
+        for (let i = 0; i < 8; i++) {
+          const nx = sx + (Math.random() - 0.5) * 28;
+          const ny = sy + (Math.random() - 0.5) * 28;
+          ctx.fillRect(nx, ny, 1 + Math.random() * 2, 1);
+        }
+        ctx.restore();
+      }
     }
 
-    // Shield circle with CRT glow
-    if (player.flags & PFSHIELD) {
-      ctx.strokeStyle = color;
-      ctx.shadowBlur = 6;
-      ctx.shadowColor = color;
-      ctx.lineWidth = 1;
+    // --- #6 Fuel gauge ring (own ship only, before shield) ---
+    if (isMe) {
+      const fuelRatio = player.fuel / maxFuel;
+      const sweep = fuelRatio * TWO_PI;
+      const fuelColor = fuelRatio > 0.5 ? '#00ff00' : fuelRatio > 0.25 ? '#ffff00' : '#ff0000';
+      ctx.save();
+      ctx.globalAlpha = (player.flags & PFCLOAK) ? ctx.globalAlpha * 0.6 : 0.6;
+      ctx.strokeStyle = fuelColor;
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(sx, sy, 14, 0, TWO_PI);
+      // Start from top (-PI/2), sweep clockwise
+      ctx.arc(sx, sy, 17, -Math.PI / 2, -Math.PI / 2 + sweep);
       ctx.stroke();
-      ctx.shadowBlur = 0;
+      ctx.restore();
+      // Restore cloak alpha if needed
+      if (player.flags & PFCLOAK) {
+        const bucket = Math.floor(now / 150);
+        const hash = ((bucket * 2654435761) >>> 0) / 4294967296;
+        ctx.globalAlpha = 0.15 + hash * 0.25;
+      }
     }
 
-    // Ship body — vector SVG ship
-    drawShipSVG(ctx, player.team, player.shipType, player.dir, sx, sy, 11, color);
+    // --- #1 Shield bubble (replaces 1px stroke circle) ---
+    if (player.flags & PFSHIELD) {
+      const shieldRatio = player.shield / maxShield;
+      const pulseRadius = 14 + Math.sin(now * 0.004) * 0.5;
 
-    // Label: team letter + player number
+      // Detect shield hit for flicker
+      if (player.shield < player.lastShield) {
+        this.shieldHitTime[player.number] = now;
+      }
+      const hitAge = now - this.shieldHitTime[player.number];
+      const flickering = hitAge < 200;
+      const flickerAlpha = flickering ? (0.3 + Math.random() * 0.4) : 1.0;
+
+      // Energy field dome — bright at edge, transparent center
+      const cloakAlpha = player.flags & PFCLOAK ? ctx.globalAlpha : 1;
+      const rgb = color === '#fff' ? '160,200,255' : '80,160,255';
+      ctx.save();
+      ctx.globalAlpha = cloakAlpha * flickerAlpha * shieldRatio;
+      const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, pulseRadius);
+      grad.addColorStop(0, `rgba(${rgb}, 0)`);
+      grad.addColorStop(0.5, `rgba(${rgb}, 0)`);
+      grad.addColorStop(0.8, `rgba(${rgb}, 0.08)`);
+      grad.addColorStop(0.95, `rgba(${rgb}, 0.25)`);
+      grad.addColorStop(1, `rgba(${rgb}, 0.4)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(sx, sy, pulseRadius, 0, TWO_PI);
+      ctx.fill();
+
+      // Bright edge ring
+      ctx.globalAlpha = cloakAlpha * flickerAlpha * (0.4 + shieldRatio * 0.6);
+      ctx.strokeStyle = `rgba(${rgb}, 0.9)`;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = `rgba(${rgb}, 0.6)`;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(sx, sy, pulseRadius, 0, TWO_PI);
+      ctx.stroke();
+      ctx.restore();
+
+      // Restore cloak alpha
+      if (player.flags & PFCLOAK) {
+        const bucket = Math.floor(now / 150);
+        const hash = ((bucket * 2654435761) >>> 0) / 4294967296;
+        ctx.globalAlpha = 0.15 + hash * 0.25;
+      }
+    }
+
+    // Engine exhaust trail — scales with speed
+    if (player.speed > 0) {
+      const maxSpeed = stats?.speed ?? 12;
+      const t = player.speed / maxSpeed;
+      const rad = (player.dir / 256) * TWO_PI - Math.PI / 2;
+      const exDx = -Math.cos(rad);
+      const exDy = -Math.sin(rad);
+      const trailLen = 8 + 20 * t;
+      const particles = 3 + Math.floor(4 * t);
+
+      // Engine light pool — colored glow cast on space behind ship
+      const poolDist = 10 + 8 * t;
+      const poolX = sx + exDx * poolDist;
+      const poolY = sy + exDy * poolDist;
+      const poolRadius = 8 + 12 * t;
+      ctx.save();
+      const poolGrad = ctx.createRadialGradient(poolX, poolY, 0, poolX, poolY, poolRadius);
+      poolGrad.addColorStop(0, `rgba(255, 140, 0, ${0.08 * t})`);
+      poolGrad.addColorStop(1, 'rgba(255, 140, 0, 0)');
+      ctx.fillStyle = poolGrad;
+      ctx.beginPath();
+      ctx.arc(poolX, poolY, poolRadius, 0, TWO_PI);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      for (let i = 0; i < particles; i++) {
+        const frac = (i + 1) / particles;
+        const dist = 6 + frac * trailLen;
+        const spread = (Math.random() - 0.5) * 4 * frac;
+        const px = sx + exDx * dist + exDy * spread;
+        const py = sy + exDy * dist - exDx * spread;
+        const alpha = (1 - frac) * 0.7 * t;
+        const sz = (1 - frac * 0.6) * (1.5 + t);
+
+        ctx.fillStyle = `rgba(255, ${150 + Math.floor(105 * (1 - frac))}, 0, ${alpha})`;
+        ctx.shadowBlur = 4 + 6 * t * (1 - frac);
+        ctx.shadowColor = `rgba(255, ${100 + Math.floor(100 * (1 - frac))}, 0, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(px, py, sz, 0, TWO_PI);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // --- #2 Damage sparks ---
+    const damageRatio = player.hull / maxHull; // hull = damage taken
+    if (damageRatio > 0.25) {
+      const sparkCount = Math.min(5, Math.ceil(damageRatio * 5));
+      ctx.save();
+      for (let i = 0; i < sparkCount; i++) {
+        if (Math.random() < 0.4) continue; // 40% random culling for flicker
+        const angle = Math.random() * TWO_PI;
+        const dist = 4 + Math.random() * 10;
+        const spx = sx + Math.cos(angle) * dist;
+        const spy = sy + Math.sin(angle) * dist;
+        const sparkColors = ['#ffffff', '#ffff00', '#ff8800'];
+        ctx.fillStyle = sparkColors[Math.floor(Math.random() * sparkColors.length)];
+        ctx.shadowBlur = 4;
+        ctx.shadowColor = '#ffff00';
+        ctx.fillRect(spx, spy, 1 + Math.random(), 1);
+      }
+      ctx.restore();
+    }
+
+    // --- #5 Ship banking (3D foreshortening) ---
+    // Compute bank angle from direction delta
+    let dirDelta = player.dir - player.prevDir;
+    if (dirDelta > 128) dirDelta -= 256;
+    if (dirDelta < -128) dirDelta += 256;
+    // Max 25 degrees bank for visible foreshortening
+    const targetBankDeg = Math.max(-25, Math.min(25, dirDelta * 2.5));
+    this.bankAngles[player.number] += (targetBankDeg - this.bankAngles[player.number]) * 0.15;
+    const bankDeg = this.bankAngles[player.number];
+    const bankRad = (bankDeg * Math.PI) / 180;
+    // Perpendicular scale: cos(bankAngle) squishes the ship across its width
+    const perpScale = Math.cos(bankRad); // 1.0 = level, ~0.91 at max bank
+
+    // #7 Weapon temperature glow — drawn before ship SVG
+    const maxTemp = Math.max(player.wTemp, player.eTemp);
+    const tempRatio = maxTemp / 1200;
+    if (tempRatio > 0.15) {
+      ctx.save();
+      const intensity = (tempRatio - 0.15) / 0.85; // 0..1
+      const r = 255;
+      const g = Math.floor(160 * (1 - intensity * 0.6));
+      const b = 0;
+      ctx.globalAlpha = 0.1 + intensity * 0.3;
+      ctx.shadowBlur = 8 + intensity * 12;
+      ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.8)`;
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.1 + intensity * 0.3})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 6, 0, TWO_PI);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Ship body — 3D banking via perpendicular scale transform
+    const headingRad = (player.dir / 256) * TWO_PI - Math.PI / 2;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(headingRad);       // align to heading axis
+    ctx.scale(1, perpScale);      // squish perpendicular to heading
+    ctx.rotate(-headingRad);      // rotate back
+    ctx.translate(-sx, -sy);
+    drawShipSVG(ctx, player.team, player.shipType, player.dir, sx, sy, 11, color);
+    ctx.restore();
+
+    // Label: team letter + player number (existing)
     ctx.shadowBlur = 4;
     ctx.shadowColor = color;
     ctx.fillStyle = color;
     const teamLetter = TEAM_LETTERS[player.team] ?? '?';
     ctx.fillText(`${teamLetter}${player.number}`, sx, sy + 24);
 
-    // Ship type
+    // --- #9 Kill count pips ---
+    if (player.kills >= 1.0) {
+      const wholeKills = Math.floor(player.kills);
+      ctx.save();
+      ctx.font = '8px monospace';
+      ctx.fillStyle = '#ffcc00';
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = '#ffcc00';
+      let killText: string;
+      if (wholeKills <= 5) {
+        killText = '\u2605'.repeat(wholeKills);
+      } else {
+        killText = `\u2605${wholeKills}`;
+      }
+      ctx.fillText(killText, sx, sy + 44);
+      ctx.restore();
+      ctx.font = '11px monospace';
+    }
+
+    // Ship type (existing)
     ctx.fillStyle = '#888';
     ctx.shadowColor = '#888';
+    ctx.shadowBlur = 4;
     ctx.fillText(SHIP_SHORT[player.shipType] ?? '??', sx, sy + 34);
     ctx.shadowBlur = 0;
+
+    // --- #8 Army count badge ---
+    if (player.armies > 0) {
+      const badgeX = sx + 10;
+      const badgeY = sy - 10;
+      const badgeColor = TEAM_COLORS[player.team] ?? '#888';
+      ctx.save();
+      ctx.fillStyle = badgeColor;
+      ctx.shadowBlur = 3;
+      ctx.shadowColor = badgeColor;
+      ctx.beginPath();
+      ctx.arc(badgeX, badgeY, 5, 0, TWO_PI);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#000';
+      ctx.font = '7px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${player.armies}`, badgeX, badgeY);
+      ctx.textBaseline = 'alphabetic';
+      ctx.font = '11px monospace';
+      ctx.restore();
+    }
+
+    // Update tracking for next frame
+    player.lastShield = player.shield;
+    player.prevDir = player.dir;
 
     // Restore alpha
     if (player.flags & PFCLOAK) {
@@ -897,6 +1310,24 @@ export class Renderer {
   private drawTacPlanet(ctx: CanvasRenderingContext2D, planet: Planet, sx: number, sy: number) {
     const color = TEAM_COLORS[planet.owner] ?? '#888';
     const radius = 12;
+
+    // Atmosphere halo — soft glow ring around planet
+    ctx.save();
+    const haloRadius = radius + 8;
+    const haloGrad = ctx.createRadialGradient(sx, sy, radius - 2, sx, sy, haloRadius);
+    // Parse hex color to RGB for proper rgba() stops
+    const hc = color;
+    const hr = parseInt(hc.slice(1, 3), 16);
+    const hg = parseInt(hc.slice(3, 5), 16);
+    const hb = parseInt(hc.slice(5, 7), 16);
+    haloGrad.addColorStop(0, `rgba(${hr}, ${hg}, ${hb}, 0.15)`);
+    haloGrad.addColorStop(0.5, `rgba(${hr}, ${hg}, ${hb}, 0.06)`);
+    haloGrad.addColorStop(1, `rgba(${hr}, ${hg}, ${hb}, 0)`);
+    ctx.fillStyle = haloGrad;
+    ctx.beginPath();
+    ctx.arc(sx, sy, haloRadius, 0, TWO_PI);
+    ctx.fill();
+    ctx.restore();
 
     // Planet circle with CRT glow
     ctx.shadowBlur = 4;
@@ -1265,20 +1696,22 @@ export class Renderer {
       ctx.fillText(this.state.motdLines[i], 10, y);
     }
 
-    ctx.textAlign = 'center';
-    ctx.font = '14px monospace';
-    if (this.state.warningText) {
-      ctx.fillStyle = '#ff0';
-      ctx.fillText(this.state.warningText, size / 2, size - 50);
-    }
+    // Skip bottom prompts when the HTML login form is overlaid
+    if (!this.loginFormVisible) {
+      ctx.textAlign = 'center';
+      ctx.font = '14px monospace';
+      if (this.state.warningText) {
+        ctx.fillStyle = '#ff0';
+        ctx.fillText(this.state.warningText, size / 2, size - 50);
+      }
 
-    ctx.font = '12px monospace';
-    ctx.fillStyle = this.state.connected ? '#0a0' : '#f00';
-    ctx.fillText(
-      this.state.connected ? 'Connected - Press ENTER to login' : 'Connecting...',
-      size / 2, size - 20
-    );
-    ctx.textAlign = 'left';
+      if (!this.state.connected) {
+        ctx.font = '12px monospace';
+        ctx.fillStyle = '#f00';
+        ctx.fillText('Connecting...', size / 2, size - 20);
+      }
+      ctx.textAlign = 'left';
+    }
   }
 
   // ============================================================

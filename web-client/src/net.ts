@@ -14,6 +14,7 @@ import {
   TMOVE, TEXPLODE, PTMOVE, PTEXPLODE,
   PHHIT, PHHIT2, PHMISS,
   MAXPLAYER, MAXPLANETS, MAXTORP, TWIDTH,
+  PFSELFDEST,
 } from './constants';
 
 export class NetrekConnection {
@@ -27,6 +28,7 @@ export class NetrekConnection {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private intentionalClose = false;
+  private lastInputTime = Date.now();
   readonly audio = new AudioEngine();
 
   constructor(state: GameState, onStateUpdate: () => void) {
@@ -37,6 +39,11 @@ export class NetrekConnection {
   /** Register a callback to be called on reconnect (e.g., to reset input state) */
   setReconnectCallback(cb: () => void) {
     this.onReconnect = cb;
+  }
+
+  /** Notify that user input occurred (resets idle timer for keepalive suppression) */
+  notifyInput() {
+    this.lastInputTime = Date.now();
   }
 
   connect(url: string) {
@@ -133,9 +140,14 @@ export class NetrekConnection {
 
   private startKeepalive() {
     this.stopKeepalive();
-    // Send CP_UPDATES every 10s to prevent server ghostbusting
+    // Send CP_UPDATES every 10s to prevent server ghostbusting.
+    // Skip while self-destruct is active (server cancels it on most packets)
+    // and when idle for 60s+ (no user input).
     this.keepaliveTimer = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
+        const me = this.state.myNumber >= 0 ? this.state.players[this.state.myNumber] : null;
+        if (me && me.flags & PFSELFDEST) return;
+        if (Date.now() - this.lastInputTime > 60000) return;
         this.sendUpdates(50000);
       }
     }, 10000);
@@ -357,7 +369,7 @@ export class NetrekConnection {
         const f = unpack(SP.FLAGS.format, view);
         const pnum = f[1] as number;
         if (!this.validPlayer(pnum)) break;
-        // f[2] = tractor target
+        s.players[pnum].tractTarget = f[2] as number;
         s.players[pnum].flags = f[3] as number;
         break;
       }

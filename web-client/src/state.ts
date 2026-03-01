@@ -30,6 +30,9 @@ export interface Player {
   wTemp: number;
   eTemp: number;
   explodeStart: number; // timestamp when explosion began
+  tractTarget: number;  // player being tractored/repressed (-1 = none)
+  lastShield: number;   // previous shield value for hit detection
+  prevDir: number;      // previous direction for banking
 }
 
 export interface Torpedo {
@@ -114,6 +117,8 @@ export interface GameState {
 
   // Client-side desired direction (set by input handler for trajectory arc)
   desiredDir: number; // -1 = no pending turn, 0-255 = target direction
+  // Client-side desired speed (set by input handler for arrow-key speed control)
+  desiredSpeed: number; // -1 = no pending change
 
   // Ping / latency
   lastPingTime: number;
@@ -131,6 +136,7 @@ function createPlayer(num: number): Player {
     name: '', login: '', rank: 0, kills: 0,
     hostile: 0, war: 0, armies: 0,
     fuel: 0, shield: 0, hull: 0, wTemp: 0, eTemp: 0, explodeStart: 0,
+    tractTarget: -1, lastShield: 0, prevDir: 0,
   };
 }
 
@@ -187,6 +193,7 @@ export function createGameState(): GameState {
     warningText: '',
     warningTime: 0,
     desiredDir: -1,
+    desiredSpeed: -1,
     queuePos: -1,
     lastPingTime: 0,
     latencyMs: -1,

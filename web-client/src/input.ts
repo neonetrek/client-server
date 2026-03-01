@@ -8,6 +8,7 @@
 import { NetrekConnection } from './net';
 import { GameState } from './state';
 import { Renderer } from './renderer';
+import { LoginFormController } from './login-form';
 import {
   PFSHIELD, PFCLOAK, PFORBIT, PFREPAIR, PFBOMB, PFTRACT, PFPRESS,
   FED, ROM, KLI, ORI,
@@ -16,17 +17,13 @@ import {
   SHIP_STATS,
 } from './constants';
 
-const MAX_LOGIN_LEN = 15; // 16 bytes minus null terminator
-
 export class InputHandler {
   private net: NetrekConnection;
   private state: GameState;
   private renderer: Renderer;
   private keysDown = new Set<string>();
-  private loginState: 'waiting' | 'enterName' | 'enterPassword' | 'done' = 'waiting';
-  private inputBuffer = '';
-  private userName = '';
-  private userPassword = '';
+  private loginState: 'waiting' | 'formActive' | 'done' = 'waiting';
+  loginForm!: LoginFormController;
 
   // Chat state
   private chatMode = false;
@@ -38,6 +35,10 @@ export class InputHandler {
 
   // Arrow-key turning: last direction sent to avoid spamming dupes
   private lastSentDir = -1;
+  // Fractional turn accumulator (mirrors server's p_subdir)
+  private turnSubDir = 0;
+  // Throttle for held ArrowUp/Down speed changes
+  private lastSpeedTickTime = 0;
 
   constructor(net: NetrekConnection, state: GameState, renderer: Renderer) {
     this.net = net;
@@ -48,6 +49,10 @@ export class InputHandler {
   get isChatting(): boolean { return this.chatMode; }
   get chatText(): string { return this.chatBuffer; }
   get isHelpVisible(): boolean { return this.showHelp; }
+  setLoginDone() {
+    this.loginState = 'done';
+  }
+
   get chatTargetLabel(): string {
     if (this.chatTarget === 'all') return 'ALL';
     if (this.chatTarget === 'team') return 'TEAM';
@@ -57,21 +62,25 @@ export class InputHandler {
   /** Reset login/chat state (called on reconnect) */
   resetLoginState() {
     this.loginState = 'waiting';
-    this.inputBuffer = '';
-    this.userName = '';
-    this.userPassword = '';
     this.chatMode = false;
     this.chatBuffer = '';
+    this.state.desiredSpeed = -1;
+    this.loginForm?.reset();
+    this.loginForm?.hide();
   }
 
   setup(canvas: HTMLCanvasElement) {
-    document.addEventListener('keydown', (e) => this.onKeyDown(e));
-    document.addEventListener('keyup', (e) => this.onKeyUp(e));
-    canvas.addEventListener('mousedown', (e) => this.onMouseDown(e, canvas));
+    document.addEventListener('keydown', (e) => { this.net.notifyInput(); this.onKeyDown(e); });
+    document.addEventListener('keyup', (e) => { this.net.notifyInput(); this.onKeyUp(e); });
+    canvas.addEventListener('mousedown', (e) => { this.net.notifyInput(); this.onMouseDown(e, canvas); });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
-  /** Called each render tick to process held arrow keys for continuous turning. */
+  /** Called each render tick to process held arrow keys for continuous turning.
+   *  Turn rate matches the server's changedir() formula (newturn mode):
+   *    per server frame (10 FPS): p_subdir += s_turns / (speed^2)
+   *    direction ticks = p_subdir / 1000
+   *  Client ticks at 20 FPS (REDRAW_RATE=50ms), so we accumulate half per tick. */
   tickHeldKeys() {
     if (this.chatMode) return;
     if (this.state.phase !== 'alive') return;
@@ -79,14 +88,61 @@ export class InputHandler {
     const me = this.state.players[this.state.myNumber];
     if (!me) return;
 
+    // Held ArrowUp/Down: increment/decrement desired speed, throttled
+    const up = this.keysDown.has('ArrowUp');
+    const down = this.keysDown.has('ArrowDown');
+    if (up || down) {
+      const now = Date.now();
+      if (now - this.lastSpeedTickTime >= 200) {
+        this.lastSpeedTickTime = now;
+        const maxSpeed = SHIP_STATS[me.shipType]?.speed ?? 12;
+        const base = this.state.desiredSpeed >= 0 ? this.state.desiredSpeed : me.speed;
+        let newSpeed = base;
+        if (up) newSpeed = Math.min(base + 1, maxSpeed);
+        if (down) newSpeed = Math.max(base - 1, 0);
+        if (newSpeed !== this.state.desiredSpeed) {
+          this.state.desiredSpeed = newSpeed;
+          this.net.sendSpeed(newSpeed);
+        }
+      }
+    } else {
+      this.lastSpeedTickTime = 0;
+    }
+
+    // Clear desiredSpeed once actual speed has caught up
+    if (this.state.desiredSpeed >= 0 && me.speed === this.state.desiredSpeed) {
+      this.state.desiredSpeed = -1;
+    }
+
     const left = this.keysDown.has('ArrowLeft');
     const right = this.keysDown.has('ArrowRight');
-    if (!left && !right) return;
+    if (!left && !right) {
+      this.turnSubDir = 0;
+      return;
+    }
 
-    // Turn step: 4 direction units per tick (256 = full circle)
-    const step = 4;
+    const speed = me.speed;
+    const sTurns = SHIP_STATS[me.shipType]?.turns ?? 170000;
+    let step: number;
+
+    // Max step per tick to keep arrow keys controllable at low speeds
+    // 8 dir/tick at 20 FPS = 160 dir/sec = full circle in ~1.6s
+    const MAX_STEP = 8;
+
+    if (speed === 0) {
+      // At speed 0 the server sets direction instantly
+      step = MAX_STEP;
+      this.turnSubDir = 0;
+    } else {
+      // Accumulate fractional turn: server adds s_turns/(speed^2) per frame at 10 FPS,
+      // client ticks at 20 FPS so add half that per tick
+      this.turnSubDir += sTurns / (speed * speed * 2);
+      step = Math.min(Math.floor(this.turnSubDir / 1000), MAX_STEP);
+      if (step < 1) return;
+      this.turnSubDir %= 1000;
+    }
+
     let newDir = me.dir;
-
     if (left) newDir = (me.dir - step + 256) & 0xFF;
     if (right) newDir = (me.dir + step) & 0xFF;
 
@@ -99,6 +155,9 @@ export class InputHandler {
   }
 
   private onKeyDown(e: KeyboardEvent) {
+    // Don't intercept keys while the login form is active
+    if (this.loginForm?.isVisible) return;
+
     this.keysDown.add(e.key);
 
     // Help toggle works in any phase
@@ -144,66 +203,29 @@ export class InputHandler {
   private handleLoginInput(e: KeyboardEvent) {
     if (!this.state.connected) return;
 
-    // If login is done but phase hasn't changed yet, don't swallow input
-    if (this.loginState === 'done') {
-      // Phase may have transitioned to 'outfit' between frames
-      if (this.state.phase === 'outfit' || this.state.phase === 'dead') {
-        this.handleOutfitInput(e);
-      } else if (e.key === 'Enter') {
-        // Login was rejected — let user retry
-        this.loginState = 'enterName';
-        this.inputBuffer = '';
-        this.state.warningText = 'Enter name (or press Enter for guest):';
-        this.state.warningTime = Date.now();
-      }
-      return;
-    }
-
     switch (this.loginState) {
       case 'waiting':
         if (e.key === 'Enter') {
-          this.loginState = 'enterName';
-          this.inputBuffer = '';
-          this.state.warningText = 'Enter name (or press Enter for guest):';
-          this.state.warningTime = Date.now();
+          e.preventDefault(); // prevent Enter from propagating to form input
+          this.loginState = 'formActive';
+          this.loginForm.show();
         }
         break;
 
-      case 'enterName':
-        if (e.key === 'Enter') {
-          this.userName = this.inputBuffer || 'guest';
-          this.inputBuffer = '';
-          this.loginState = 'enterPassword';
-          this.state.warningText = 'Enter password (or press Enter for none):';
-          this.state.warningTime = Date.now();
-        } else if (e.key === 'Backspace') {
-          this.inputBuffer = this.inputBuffer.slice(0, -1);
-          this.state.warningText = `Name: ${this.inputBuffer}_`;
-          this.state.warningTime = Date.now();
-        } else if (e.key.length === 1 && this.inputBuffer.length < MAX_LOGIN_LEN) {
-          this.inputBuffer += e.key;
-          this.state.warningText = `Name: ${this.inputBuffer}_`;
-          this.state.warningTime = Date.now();
-        }
+      case 'formActive':
+        // Form handles all input via stopPropagation; nothing to do here
         break;
 
-      case 'enterPassword':
-        if (e.key === 'Enter') {
-          this.userPassword = this.inputBuffer;
-          this.inputBuffer = '';
-          this.loginState = 'done';
-          this.net.sendLogin(this.userName, this.userPassword, this.userName);
-          this.state.warningText = `Logging in as ${this.userName}...`;
-          this.state.warningTime = Date.now();
-          this.net.sendUpdates(50000);
-        } else if (e.key === 'Backspace') {
-          this.inputBuffer = this.inputBuffer.slice(0, -1);
-          this.state.warningText = `Password: ${'*'.repeat(this.inputBuffer.length)}_`;
-          this.state.warningTime = Date.now();
-        } else if (e.key.length === 1 && this.inputBuffer.length < MAX_LOGIN_LEN) {
-          this.inputBuffer += e.key;
-          this.state.warningText = `Password: ${'*'.repeat(this.inputBuffer.length)}_`;
-          this.state.warningTime = Date.now();
+      case 'done':
+        // Phase may have transitioned to 'outfit' between frames
+        if (this.state.phase === 'outfit' || this.state.phase === 'dead') {
+          this.handleOutfitInput(e);
+        } else if (e.key === 'Enter') {
+          e.preventDefault(); // prevent Enter from propagating to form input
+          // Login was rejected — re-show form for retry (keep username, clear password)
+          this.loginState = 'formActive';
+          this.loginForm.clearPassword();
+          this.loginForm.show();
         }
         break;
     }
@@ -257,25 +279,19 @@ export class InputHandler {
 
     // Speed keys: 0-9
     if (key >= '0' && key <= '9') {
-      this.net.sendSpeed(parseInt(key));
+      this.state.desiredSpeed = parseInt(key);
+      this.net.sendSpeed(this.state.desiredSpeed);
       e.preventDefault();
       return;
     }
 
     // Speed 10-12 via shift+number
-    if (key === '!' || key === ')') { this.net.sendSpeed(10); e.preventDefault(); return; }
-    if (key === '@') { this.net.sendSpeed(11); e.preventDefault(); return; }
-    if (key === '#' || key === '%') { this.net.sendSpeed(12); e.preventDefault(); return; }
+    if (key === '!' || key === ')') { this.state.desiredSpeed = 10; this.net.sendSpeed(10); e.preventDefault(); return; }
+    if (key === '@') { this.state.desiredSpeed = 11; this.net.sendSpeed(11); e.preventDefault(); return; }
+    if (key === '#' || key === '%') { this.state.desiredSpeed = 12; this.net.sendSpeed(12); e.preventDefault(); return; }
 
-    // Arrow keys for relative speed control
-    if (key === 'ArrowUp') {
-      const maxSpeed = SHIP_STATS[me.shipType]?.speed ?? 12;
-      this.net.sendSpeed(Math.min(me.speed + 1, maxSpeed));
-      e.preventDefault();
-      return;
-    }
-    if (key === 'ArrowDown') {
-      this.net.sendSpeed(Math.max(me.speed - 1, 0));
+    // ArrowUp/ArrowDown handled in tickHeldKeys() for reliable held-key behavior
+    if (key === 'ArrowUp' || key === 'ArrowDown') {
       e.preventDefault();
       return;
     }
