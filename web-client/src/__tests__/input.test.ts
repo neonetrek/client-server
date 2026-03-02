@@ -13,6 +13,7 @@ import {
   FED, ROM, KLI, ORI,
   SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, SGALAXY,
   MALL, MTEAM, MINDIV,
+  PALIVE,
 } from '../constants';
 
 // ============================================================
@@ -45,6 +46,7 @@ function createMockNet() {
     sendUpdates: vi.fn(),
     sendQuit: vi.fn(),
     sendBye: vi.fn(),
+    quitAndReconnect: vi.fn(),
     audio: {
       toggleMute: vi.fn().mockReturnValue(true),
     },
@@ -274,6 +276,9 @@ describe('InputHandler', () => {
 
     it('digits 0-9 set speed', () => {
       for (let i = 0; i <= 9; i++) {
+        // Ensure current speed differs so the dedup guard doesn't skip
+        state.players[0].speed = i === 0 ? 5 : 0;
+        net.sendSpeed.mockClear();
         keyDown(String(i));
         expect(net.sendSpeed).toHaveBeenCalledWith(i);
       }
@@ -322,36 +327,36 @@ describe('InputHandler', () => {
       expect(net.sendShield).toHaveBeenCalledWith(false);
     });
 
-    it('c toggles cloak on', () => {
-      keyDown('c');
+    it('f toggles cloak on', () => {
+      keyDown('f');
       expect(net.sendCloak).toHaveBeenCalledWith(true);
     });
 
-    it('c toggles cloak off when already cloaked', () => {
+    it('f toggles cloak off when already cloaked', () => {
       state.players[0].flags = PFCLOAK;
-      keyDown('c');
+      keyDown('f');
       expect(net.sendCloak).toHaveBeenCalledWith(false);
     });
 
-    it('R toggles repair on', () => {
-      keyDown('R');
+    it('g toggles repair on', () => {
+      keyDown('g');
       expect(net.sendRepair).toHaveBeenCalledWith(true);
     });
 
-    it('R toggles repair off when repairing', () => {
+    it('g toggles repair off when repairing', () => {
       state.players[0].flags = PFREPAIR;
-      keyDown('R');
+      keyDown('g');
       expect(net.sendRepair).toHaveBeenCalledWith(false);
     });
 
-    it('o toggles orbit on', () => {
-      keyDown('o');
+    it('c toggles orbit on', () => {
+      keyDown('c');
       expect(net.sendOrbit).toHaveBeenCalledWith(true);
     });
 
-    it('o toggles orbit off when orbiting', () => {
+    it('c toggles orbit off when orbiting', () => {
       state.players[0].flags = PFORBIT;
-      keyDown('o');
+      keyDown('c');
       expect(net.sendOrbit).toHaveBeenCalledWith(false);
     });
 
@@ -381,34 +386,52 @@ describe('InputHandler', () => {
       expect(net.sendDetTorps).toHaveBeenCalled();
     });
 
-    it('f/F fires plasma', () => {
+    it('t/T fires plasma', () => {
       state.players[0].dir = 64;
-      keyDown('f');
+      keyDown('t');
       expect(net.sendPlasma).toHaveBeenCalledWith(64);
     });
 
-    it('t key sends torpedo', () => {
-      keyDown('t');
+    it('w key sends torpedo', () => {
+      keyDown('w');
       expect(net.sendTorp).toHaveBeenCalled();
     });
 
-    it('r toggles tractor beam', () => {
+    it('q activates tractor beam on nearest target', () => {
       state.players[0].flags = 0;
-      keyDown('r');
-      expect(net.sendTractor).toHaveBeenCalledWith(true, 0);
-      net.sendTractor.mockClear();
+      state.players[0].x = 5000;
+      state.players[0].y = 5000;
+      // Place a nearby alive enemy as target
+      state.players[1].status = PALIVE;
+      state.players[1].x = 5500;
+      state.players[1].y = 5000;
+      state.players[1].number = 1;
+      keyDown('q');
+      expect(net.sendTractor).toHaveBeenCalledWith(true, 1);
+    });
+
+    it('q releases tractor beam when already locked', () => {
       state.players[0].flags = PFTRACT;
-      keyDown('r');
+      keyDown('q');
       expect(net.sendTractor).toHaveBeenCalledWith(false, 0);
     });
 
-    it('y toggles repressor', () => {
+    it('r activates repressor on nearest target', () => {
       state.players[0].flags = 0;
-      keyDown('y');
-      expect(net.sendRepress).toHaveBeenCalledWith(true, 0);
-      net.sendRepress.mockClear();
+      state.players[0].x = 5000;
+      state.players[0].y = 5000;
+      // Place a nearby alive enemy as target
+      state.players[1].status = PALIVE;
+      state.players[1].x = 5500;
+      state.players[1].y = 5000;
+      state.players[1].number = 1;
+      keyDown('r');
+      expect(net.sendRepress).toHaveBeenCalledWith(true, 1);
+    });
+
+    it('r releases repressor when already pressing', () => {
       state.players[0].flags = PFPRESS;
-      keyDown('y');
+      keyDown('r');
       expect(net.sendRepress).toHaveBeenCalledWith(false, 0);
     });
 
@@ -424,14 +447,17 @@ describe('InputHandler', () => {
       expect(state.warningText).toContain('Sound');
     });
 
-    it('Q with shift sends quit', () => {
+    it('Q with shift twice sends quit (double-press confirmation)', () => {
       keyDown('Q', { shiftKey: true });
-      expect(net.sendQuit).toHaveBeenCalled();
+      expect(net.quitAndReconnect).not.toHaveBeenCalled();
+      keyDown('Q', { shiftKey: true });
+      expect(net.quitAndReconnect).toHaveBeenCalled();
     });
 
-    it('Q without shift does not send quit', () => {
+    it('Q without shift does not quit', () => {
       keyDown('Q', { shiftKey: false });
-      expect(net.sendQuit).not.toHaveBeenCalled();
+      keyDown('Q', { shiftKey: false });
+      expect(net.quitAndReconnect).not.toHaveBeenCalled();
     });
   });
 
@@ -576,8 +602,8 @@ describe('InputHandler', () => {
       expect(net.sendPhaser).toHaveBeenCalled();
     });
 
-    it('p key sends phaser', () => {
-      keyDown('p');
+    it('e key sends phaser', () => {
+      keyDown('e');
       expect(net.sendPhaser).toHaveBeenCalled();
     });
 

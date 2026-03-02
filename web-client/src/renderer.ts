@@ -961,9 +961,9 @@ export class Renderer {
     ctx.font = '11px monospace';
 
     const weaponKeys = [
-      ['t / Right click', 'Fire torpedo'],
-      ['p / Mid click', 'Fire phaser'],
-      ['f', 'Fire plasma'],
+      ['w / Right click', 'Fire torpedo'],
+      ['e / Mid click', 'Fire phaser'],
+      ['t', 'Fire plasma'],
       ['d', 'Det enemy torps'],
     ];
     for (const [key, desc] of weaponKeys) {
@@ -983,8 +983,8 @@ export class Renderer {
 
     const defenseKeys = [
       ['s', 'Toggle shields'],
-      ['c', 'Toggle cloak'],
-      ['R', 'Toggle repair'],
+      ['f', 'Toggle cloak'],
+      ['g', 'Toggle repair'],
     ];
     for (const [key, desc] of defenseKeys) {
       ctx.fillStyle = '#ff0';
@@ -1002,8 +1002,8 @@ export class Renderer {
     ctx.font = '11px monospace';
 
     const tractorKeys = [
-      ['r', 'Tractor beam toggle'],
-      ['y', 'Repressor toggle'],
+      ['q', 'Tractor beam toggle'],
+      ['r', 'Repressor toggle'],
     ];
     for (const [key, desc] of tractorKeys) {
       ctx.fillStyle = '#ff0';
@@ -1022,7 +1022,7 @@ export class Renderer {
     ctx.font = '11px monospace';
 
     const planetKeys = [
-      ['o', 'Toggle orbit'],
+      ['c', 'Toggle orbit'],
       ['b', 'Toggle bombing'],
       ['z', 'Beam up armies'],
       ['x', 'Beam down armies'],
