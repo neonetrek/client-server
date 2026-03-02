@@ -21,9 +21,9 @@ export class Starfield3D {
     this.group = new THREE.Group();
 
     const layerDefs = [
-      { count: 200, depth: -5000, color: 0x555555, size: 15, spread: 60000 },
-      { count: 120, depth: -2000, color: 0x888888, size: 12, spread: 50000 },
-      { count: 60,  depth: -500,  color: 0xbbbbbb, size: 10, spread: 40000 },
+      { count: 200, depth: -5000, color: 0x555555, size: 1.5, spread: 60000 },
+      { count: 120, depth: -2000, color: 0x888888, size: 2.0, spread: 50000 },
+      { count: 60,  depth: -500,  color: 0xbbbbbb, size: 2.5, spread: 40000 },
     ];
 
     // Seeded PRNG for deterministic positions
@@ -51,13 +51,15 @@ export class Starfield3D {
       const material = new THREE.PointsMaterial({
         color: def.color,
         size: def.size,
-        sizeAttenuation: true,
+        sizeAttenuation: false,
         transparent: true,
         opacity: 0.8,
+        depthTest: true,
       });
 
       const points = new THREE.Points(geometry, material);
       points.frustumCulled = false;
+      points.renderOrder = -100; // Render before planets/ships so stars stay behind
 
       this.group.add(points);
       this.layers.push({

@@ -19,13 +19,14 @@ const state = createGameState();
 // Get DOM elements
 const tacCanvas = document.getElementById('tactical') as HTMLCanvasElement;
 const galCanvas = document.getElementById('galactic') as HTMLCanvasElement;
+const galacticLabelsEl = document.getElementById('galactic-labels')!;
 const statusEl = document.getElementById('status')!;
 const statusBarEl = document.getElementById('status-bar')!;
 const playerListEl = document.getElementById('player-list')!;
 const messagePanelEl = document.getElementById('message-panel')!;
 
 // Create renderer with all panel elements
-const renderer = new Renderer(tacCanvas, galCanvas, state, statusBarEl, playerListEl, messagePanelEl);
+const renderer = new Renderer(tacCanvas, galCanvas, galacticLabelsEl, state, statusBarEl, playerListEl, messagePanelEl);
 
 // Forward-declared so onStateUpdate can reference it (initialized after net)
 let loginForm: LoginFormController;

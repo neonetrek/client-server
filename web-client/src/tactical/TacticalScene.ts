@@ -79,6 +79,8 @@ export class TacticalScene {
   private outfitShipMeshes: THREE.Group[] = [];
   private outfitTeamKey = '';
   private outfitAngle = 0;
+  private outfitCamera: THREE.OrthographicCamera;
+  private outfitComposer: EffectComposer;
 
   // Outfit ship types displayed (excludes Starbase)
   private static readonly OUTFIT_SHIP_TYPES = [SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, SGALAXY];
@@ -167,6 +169,22 @@ export class TacticalScene {
     this.barrier = new BarrierWall();
     this.scene.add(this.barrier.group);
 
+    // Orthographic camera for outfit showcase (no perspective distortion)
+    const halfW = 2000;
+    const halfH = 1500;
+    this.outfitCamera = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 1, 10000);
+    this.outfitCamera.up.set(0, 0, -1);
+
+    // Separate composer for outfit (uses ortho camera)
+    this.outfitComposer = new EffectComposer(this.webglRenderer);
+    const outfitRenderPass = new RenderPass(this.scene, this.outfitCamera);
+    this.outfitComposer.addPass(outfitRenderPass);
+    const outfitBloomPass = new UnrealBloomPass(
+      new THREE.Vector2(300, 300),
+      1.2, 0.4, 0.2,
+    );
+    this.outfitComposer.addPass(outfitBloomPass);
+
     // Pre-allocate explosion meshes
     for (let i = 0; i < MAXPLAYER; i++) {
       const mat = new THREE.MeshBasicMaterial({
@@ -192,6 +210,17 @@ export class TacticalScene {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.composer.setSize(width * dpr, height * dpr);
+
+    // Update outfit ortho camera to match aspect ratio
+    const aspect = width / height;
+    const orthoH = 1500;
+    const orthoW = orthoH * aspect;
+    this.outfitCamera.left = -orthoW;
+    this.outfitCamera.right = orthoW;
+    this.outfitCamera.top = orthoH;
+    this.outfitCamera.bottom = -orthoH;
+    this.outfitCamera.updateProjectionMatrix();
+    this.outfitComposer.setSize(width * dpr, height * dpr);
   }
 
   /** Main render call for tactical view (alive/observe phases) */
@@ -222,7 +251,8 @@ export class TacticalScene {
 
     // Update sub-modules
     this.starfield.update(playerX, playerZ);
-    this.planets.update(state.planets, playerX, playerZ, TAC_RANGE);
+    const { halfW, halfH } = this.getVisibleHalfExtents();
+    this.planets.update(state.planets, playerX, playerZ, halfW, halfH);
     this.updateShips(state, playerX, playerZ);
     this.shipEffects.update(state.players, state.myNumber, playerX, playerZ, TAC_RANGE);
     this.projectiles.update(state, playerX, playerZ, TAC_RANGE);
@@ -253,7 +283,7 @@ export class TacticalScene {
     const vec = new THREE.Vector3();
     for (const mesh of this.outfitShipMeshes) {
       vec.copy(mesh.position);
-      vec.project(this.camera);
+      vec.project(this.outfitMode ? this.outfitCamera : this.camera);
       // Convert from NDC (-1..1) to pixel coords
       positions.push({
         x: (vec.x * 0.5 + 0.5) * canvasWidth,
@@ -312,17 +342,17 @@ export class TacticalScene {
       mesh.rotation.set(-Math.PI / 3, this.outfitAngle, 0);
     }
 
-    // Camera: top-down, zoomed in close so ships fill the panels
-    this.camera.position.set(0, 2500, 0);
-    this.camera.lookAt(0, 0, 0);
+    // Ortho camera: top-down, no perspective distortion
+    this.outfitCamera.position.set(0, 2500, 0);
+    this.outfitCamera.lookAt(0, 0, 0);
 
     // Update starfield around origin
     this.starfield.update(0, 0);
 
-    // Render
+    // Render with outfit composer (uses ortho camera)
     this.webglRenderer.clear(true, true, true);
-    this.composer.render();
-    this.css2dRenderer.render(this.scene, this.camera);
+    this.outfitComposer.render();
+    this.css2dRenderer.render(this.scene, this.outfitCamera);
   }
 
   /** Restore tactical mode after outfit */

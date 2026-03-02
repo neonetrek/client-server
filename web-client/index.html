@@ -62,6 +62,20 @@
       overflow: hidden;
     }
 
+    /* Galactic CSS2D label container */
+    #galactic-wrap {
+      position: relative;
+      overflow: hidden;
+    }
+    #galactic-labels {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      z-index: 4;
+      overflow: hidden;
+    }
+
     #status-bar {
       height: 32px;
       display: flex;
@@ -250,7 +264,10 @@
           <button type="submit" class="login-submit">Login</button>
         </form>
       </div>
-      <canvas id="galactic"></canvas>
+      <div id="galactic-wrap" style="position: relative;">
+        <canvas id="galactic"></canvas>
+        <div id="galactic-labels"></div>
+      </div>
     </div>
     <div id="status-bar"></div>
     <div id="bottom-row">

@@ -294,11 +294,11 @@ export class NetrekConnection {
         me.armies = f[4] as number;
         // f[5] = tractor (bit 0x40 = active)
         me.flags = f[6] as number;
-        const newHull = f[7] as number;
-        if (newHull < me.hull && me.status === 2) { // hull decreased = ship took damage
+        const newDamage = f[7] as number;
+        if (newDamage > me.hull && me.status === 2) { // damage increased = ship took a hit
           me.hullHitTime = Date.now();
         }
-        me.hull = newHull;           // remaining hull strength (higher = healthier)
+        me.hull = newDamage;         // damage taken (0 = healthy, higher = more damaged)
         me.shield = f[8] as number;
         me.fuel = f[9] as number;
         me.eTemp = f[10] as number;
@@ -526,8 +526,12 @@ export class NetrekConnection {
       case 'PICKOK': {
         const f = unpack(SP.PICKOK.format, view);
         const ok = f[1] as number;
+        console.log(`[net] SP_PICKOK ok=${ok} phase=${s.phase} myTeam=${s.myTeam} teamMask=0x${s.teamMask.toString(16)}`);
         if (ok) {
           s.phase = 'alive';
+        } else {
+          s.warningText = 'Ship pick rejected by server';
+          s.warningTime = Date.now();
         }
         break;
       }
@@ -621,6 +625,7 @@ export class NetrekConnection {
   sendOutfit(team: number, ship: number) {
     // Server expects team INDEX (0=FED,1=ROM,2=KLI,3=ORI), not bitmask
     const teamIndex = Math.log2(team) | 0;
+    console.log(`[net] sendOutfit team=${team} (idx=${teamIndex}) ship=${ship} phase=${this.state.phase} myStatus=${this.state.players[this.state.myNumber]?.status}`);
     this.send(pack(CP.OUTFIT.format, CP.OUTFIT.code, teamIndex, ship));
   }
 
@@ -711,6 +716,28 @@ export class NetrekConnection {
 
   sendQuit() {
     this.send(pack(CP.QUIT.format, CP.QUIT.code));
+  }
+
+  /** Cleanly disconnect and immediately reconnect to login screen */
+  quitAndReconnect() {
+    this.sendBye();
+    this.intentionalClose = true; // prevent auto-reconnect from onclose
+    this.stopKeepalive();
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    // Reset state and reconnect immediately
+    this.intentionalClose = false;
+    this.reconnectAttempts = 0;
+    this.recvBuffer = new Uint8Array(0);
+    this.resetState();
+    if (this.onReconnect) this.onReconnect();
+    this.doConnect();
   }
 
   private sendPingResponse(num: number) {

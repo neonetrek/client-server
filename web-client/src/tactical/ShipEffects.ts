@@ -9,6 +9,7 @@ import { Player } from '../state';
 import {
   PFSHIELD, PFCLOAK, PFTRACT, PFPRESS,
   SHIP_STATS, TEAM_COLORS, TEAM_LETTERS, SHIP_SHORT, IND,
+  FED, ROM, KLI, ORI,
   MAXPLAYER,
 } from '../constants';
 
@@ -85,8 +86,195 @@ const shieldFragmentShader = /* glsl */ `
   }
 `;
 
-const SPARK_COUNT = 24;
-const SPARK_HIT_DURATION = 600; // ms of bright burst on hull hit
+// ============================================================
+// Warp trail — two glowing strips behind nacelles
+// ============================================================
+
+const TRAIL_SEGMENTS = 32; // vertices along trail length
+const TRAIL_WIDTH = 60;    // half-width of each trail strip in game units
+const TRAIL_MAX_LENGTH = 6000; // game units at max speed
+const TRAIL_MIN_LENGTH = 300;  // at very low speeds
+const NACELLE_OFFSET = 180;    // lateral offset from ship center (game units)
+const NACELLE_Z_START = 200;   // how far aft of ship center the trail begins
+
+const NACELLE_COLORS: Record<number, number> = {
+  [FED]: 0x4488ff,
+  [ROM]: 0x44ff44,
+  [KLI]: 0x44ff44,
+  [ORI]: 0x44ffff,
+  [IND]: 0x888888,
+};
+
+const trailVertexShader = /* glsl */ `
+  attribute float alpha;
+  varying float vAlpha;
+  void main() {
+    vAlpha = alpha;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const trailFragmentShader = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uBrightness;
+  varying float vAlpha;
+  void main() {
+    // Bright core that fades along the trail
+    float a = vAlpha * uBrightness;
+    // Slight glow bloom at the front
+    vec3 color = uColor * (1.0 + vAlpha * 0.5);
+    gl_FragColor = vec4(color, a);
+  }
+`;
+
+/** Build a trail strip geometry lying in XZ plane, TRAIL_SEGMENTS quads */
+function buildTrailGeometry(): THREE.BufferGeometry {
+  const vertCount = (TRAIL_SEGMENTS + 1) * 2;
+  const positions = new Float32Array(vertCount * 3);
+  const alphas = new Float32Array(vertCount);
+  const indices: number[] = [];
+
+  for (let i = 0; i <= TRAIL_SEGMENTS; i++) {
+    const t = i / TRAIL_SEGMENTS; // 0 = ship end, 1 = tail end
+    const z = t; // will be scaled in update
+    const leftIdx = i * 2;
+    const rightIdx = i * 2 + 1;
+
+    // Left vertex
+    positions[leftIdx * 3] = -TRAIL_WIDTH;
+    positions[leftIdx * 3 + 1] = 0;
+    positions[leftIdx * 3 + 2] = z;
+
+    // Right vertex
+    positions[rightIdx * 3] = TRAIL_WIDTH;
+    positions[rightIdx * 3 + 1] = 0;
+    positions[rightIdx * 3 + 2] = z;
+
+    // Alpha: bright at ship (t=0), fading to 0 at tail (t=1)
+    const a = (1 - t) * (1 - t); // quadratic falloff
+    alphas[leftIdx] = a;
+    alphas[rightIdx] = a;
+
+    // Quad indices
+    if (i < TRAIL_SEGMENTS) {
+      const bl = leftIdx;
+      const br = rightIdx;
+      const tl = leftIdx + 2;
+      const tr = rightIdx + 2;
+      indices.push(bl, br, tl);
+      indices.push(br, tr, tl);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('alpha', new THREE.Float32BufferAttribute(alphas, 1));
+  geo.setIndex(indices);
+  return geo;
+}
+
+const EXPLOSION_COUNT = 40;
+const EXPLOSION_DURATION = 600;
+const SHIP_EXTENT = 375; // half of SHIP_SCALE — particles should cover this
+
+/** Seed explosion pattern into base/velocity/delay/size arrays.
+ *  4 patterns chosen randomly on each hit. */
+function seedExplosion(
+  basePos: Float32Array, velocity: Float32Array,
+  delay: Float32Array, size: Float32Array, count: number,
+) {
+  const pattern = Math.floor(Math.random() * 4);
+
+  switch (pattern) {
+    case 0: { // SCATTER — particles across the whole ship, fly outward
+      for (let j = 0; j < count; j++) {
+        const ang = Math.random() * Math.PI * 2;
+        const r = (0.3 + Math.random() * 0.7) * SHIP_EXTENT;
+        basePos[j * 3]     = Math.cos(ang) * r;
+        basePos[j * 3 + 1] = (Math.random() - 0.5) * 60;
+        basePos[j * 3 + 2] = Math.sin(ang) * r;
+        const spd = 400 + Math.random() * 600;
+        velocity[j * 3]     = Math.cos(ang) * spd * (0.5 + Math.random());
+        velocity[j * 3 + 1] = Math.random() * 200;
+        velocity[j * 3 + 2] = Math.sin(ang) * spd * (0.5 + Math.random());
+        delay[j] = Math.random() * 0.35;
+        size[j] = Math.random() < 0.15 ? 3 + Math.random() * 2 : 1 + Math.random() * 2;
+      }
+      break;
+    }
+    case 1: { // DIRECTIONAL — impact from one side, debris sprays opposite
+      const hitAng = Math.random() * Math.PI * 2;
+      const sprayAng = hitAng + Math.PI;
+      for (let j = 0; j < count; j++) {
+        // Spawn near the impact point
+        const spread = Math.random() * 0.8;
+        const a = hitAng + (Math.random() - 0.5) * 1.2;
+        const r = (0.4 + spread) * SHIP_EXTENT;
+        basePos[j * 3]     = Math.cos(a) * r;
+        basePos[j * 3 + 1] = (Math.random() - 0.5) * 50;
+        basePos[j * 3 + 2] = Math.sin(a) * r;
+        // Spray away from impact
+        const sAng = sprayAng + (Math.random() - 0.5) * 1.5;
+        const spd = 500 + Math.random() * 800;
+        velocity[j * 3]     = Math.cos(sAng) * spd;
+        velocity[j * 3 + 1] = Math.random() * 300;
+        velocity[j * 3 + 2] = Math.sin(sAng) * spd;
+        delay[j] = Math.random() * 0.2;
+        size[j] = Math.random() < 0.2 ? 3 + Math.random() * 2 : 1 + Math.random() * 1.5;
+      }
+      break;
+    }
+    case 2: { // RING — expanding ring of debris
+      const ringAng = Math.random() * Math.PI * 2; // slight random tilt
+      for (let j = 0; j < count; j++) {
+        const a = (j / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        const r = (0.6 + Math.random() * 0.4) * SHIP_EXTENT;
+        basePos[j * 3]     = Math.cos(a + ringAng) * r;
+        basePos[j * 3 + 1] = (Math.random() - 0.5) * 40;
+        basePos[j * 3 + 2] = Math.sin(a + ringAng) * r;
+        const spd = 300 + Math.random() * 500;
+        velocity[j * 3]     = Math.cos(a + ringAng) * spd;
+        velocity[j * 3 + 1] = (Math.random() - 0.5) * 100;
+        velocity[j * 3 + 2] = Math.sin(a + ringAng) * spd;
+        delay[j] = (j / count) * 0.15 + Math.random() * 0.1;
+        size[j] = 1.5 + Math.random() * 2;
+      }
+      break;
+    }
+    case 3: { // MULTI-POP — 3-4 small clustered pops at random spots on the ship
+      const numPops = 3 + Math.floor(Math.random() * 2);
+      const perPop = Math.floor(count / numPops);
+      for (let p = 0; p < numPops; p++) {
+        const cAng = Math.random() * Math.PI * 2;
+        const cR = (0.3 + Math.random() * 0.7) * SHIP_EXTENT;
+        const cx = Math.cos(cAng) * cR;
+        const cz = Math.sin(cAng) * cR;
+        const popDelay = p * 0.12 + Math.random() * 0.05;
+        for (let k = 0; k < perPop; k++) {
+          const j = p * perPop + k;
+          if (j >= count) break;
+          basePos[j * 3]     = cx + (Math.random() - 0.5) * 80;
+          basePos[j * 3 + 1] = (Math.random() - 0.5) * 50;
+          basePos[j * 3 + 2] = cz + (Math.random() - 0.5) * 80;
+          const a = Math.random() * Math.PI * 2;
+          const spd = 200 + Math.random() * 500;
+          velocity[j * 3]     = Math.cos(a) * spd;
+          velocity[j * 3 + 1] = Math.random() * 200;
+          velocity[j * 3 + 2] = Math.sin(a) * spd;
+          delay[j] = popDelay + Math.random() * 0.08;
+          size[j] = Math.random() < 0.25 ? 2.5 + Math.random() * 2 : 1 + Math.random() * 1.5;
+        }
+      }
+      // Fill any remaining
+      for (let j = numPops * perPop; j < count; j++) {
+        basePos[j * 3] = 0; basePos[j * 3 + 1] = -99999; basePos[j * 3 + 2] = 0;
+        velocity[j * 3] = 0; velocity[j * 3 + 1] = 0; velocity[j * 3 + 2] = 0;
+        delay[j] = 1; size[j] = 0;
+      }
+      break;
+    }
+  }
+}
 
 interface ShipVisualState {
   group: THREE.Group;          // root group in the scene (positioned at ship coords)
@@ -95,16 +283,23 @@ interface ShipVisualState {
   shieldUniforms: { uTime: { value: number }; uOpacity: { value: number }; uHitFlash: { value: number }; uColor: { value: THREE.Color } };
   cloak: THREE.Mesh;
   cloakUniforms: { uTime: { value: number }; uOpacity: { value: number }; uHitFlash: { value: number }; uColor: { value: THREE.Color } };
-  exhaust: THREE.Points;
-  exhaustPositions: Float32Array;
-  sparks: THREE.Points;
-  sparkPositions: Float32Array;
+  trailLeft: THREE.Mesh;
+  trailRight: THREE.Mesh;
+  trailUniforms: { uColor: { value: THREE.Color }; uBrightness: { value: number } };
+  explosion: THREE.Points;
+  expPositions: Float32Array;
+  expBasePos: Float32Array;
+  expVelocity: Float32Array;
+  expDelay: Float32Array;   // per-particle start delay (0..0.4 of duration)
+  expSize: Float32Array;    // per-particle max pixel size
   label: CSS2DObject;
   labelDiv: HTMLDivElement;
   // State tracking
   bankAngle: number;
   shieldHitTime: number;
   lastShield: number;
+  hullHitTime: number;
+  lastHull: number;
   prevDir: number;
   lastTeam: number;
   lastShipType: number;
@@ -167,41 +362,51 @@ export class ShipEffects {
       cloak.visible = false;
       g.add(cloak);
 
-      // Exhaust particles
-      const exhaustCount = 7;
-      const exhaustPositions = new Float32Array(exhaustCount * 3);
-      const exhaustGeo = new THREE.BufferGeometry();
-      exhaustGeo.setAttribute('position', new THREE.Float32BufferAttribute(exhaustPositions, 3));
-      const exhaustMat = new THREE.PointsMaterial({
-        color: 0xff8c00,
-        size: 80,
-        sizeAttenuation: true,
+      // Warp trail strips (left + right nacelle)
+      const trailUniforms = {
+        uColor: { value: new THREE.Color(0x4488ff) },
+        uBrightness: { value: 0 },
+      };
+      const trailMat = new THREE.ShaderMaterial({
+        uniforms: trailUniforms,
+        vertexShader: trailVertexShader,
+        fragmentShader: trailFragmentShader,
         transparent: true,
-        opacity: 0.6,
         blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false,
       });
-      const exhaust = new THREE.Points(exhaustGeo, exhaustMat);
-      exhaust.frustumCulled = false;
-      g.add(exhaust);
+      const trailLeft = new THREE.Mesh(buildTrailGeometry(), trailMat);
+      trailLeft.frustumCulled = false;
+      trailLeft.visible = false;
+      g.add(trailLeft);
+      const trailRight = new THREE.Mesh(buildTrailGeometry(), trailMat.clone());
+      trailRight.frustumCulled = false;
+      trailRight.visible = false;
+      g.add(trailRight);
 
-      // Hull damage sparks
-      const sparkPositions = new Float32Array(SPARK_COUNT * 3);
-      const sparkGeo = new THREE.BufferGeometry();
-      sparkGeo.setAttribute('position', new THREE.Float32BufferAttribute(sparkPositions, 3));
-      const sparkMat = new THREE.PointsMaterial({
-        color: 0xff6600,
-        size: 200,
-        sizeAttenuation: true,
+      // Hull damage explosion particles — own dedicated arrays
+      const expPositions = new Float32Array(EXPLOSION_COUNT * 3);
+      const expBasePos = new Float32Array(EXPLOSION_COUNT * 3);
+      const expVelocity = new Float32Array(EXPLOSION_COUNT * 3);
+      const expDelay = new Float32Array(EXPLOSION_COUNT);
+      const expSize = new Float32Array(EXPLOSION_COUNT);
+      const expGeo = new THREE.BufferGeometry();
+      expGeo.setAttribute('position', new THREE.BufferAttribute(expPositions, 3));
+      const expMat = new THREE.PointsMaterial({
+        color: 0xffaa33,
+        size: 10,
+        sizeAttenuation: false,
         transparent: true,
         opacity: 0,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         depthTest: false,
       });
-      const sparks = new THREE.Points(sparkGeo, sparkMat);
-      sparks.frustumCulled = false;
-      sparks.visible = false;
-      g.add(sparks);
+      const explosion = new THREE.Points(expGeo, expMat);
+      explosion.frustumCulled = false;
+      explosion.visible = false;
+      g.add(explosion);
 
       // CSS2D Label
       const labelDiv = document.createElement('div');
@@ -218,15 +423,22 @@ export class ShipEffects {
         shieldUniforms,
         cloak,
         cloakUniforms,
-        exhaust,
-        exhaustPositions,
-        sparks,
-        sparkPositions,
+        trailLeft,
+        trailRight,
+        trailUniforms,
+        explosion,
+        expPositions,
+        expBasePos,
+        expVelocity,
+        expDelay,
+        expSize,
         label,
         labelDiv,
         bankAngle: 0,
         shieldHitTime: 0,
         lastShield: 0,
+        hullHitTime: 0,
+        lastHull: 0,
         prevDir: 0,
         lastTeam: -1,
         lastShipType: -1,
@@ -307,18 +519,6 @@ export class ShipEffects {
         const bankRad = (state.bankAngle * Math.PI) / 180;
         state.shipMesh.rotation.z = -bankRad;        // 3D roll
         state.shipMesh.rotation.y = -bankRad * 0.5;  // heading lean into turn (top-down visible)
-
-        // Temperature glow — increase emissive
-        const maxTemp = Math.max(player.wTemp, player.eTemp);
-        const tempRatio = maxTemp / 1200;
-        if (tempRatio > 0.15) {
-          const intensity = (tempRatio - 0.15) / 0.85;
-          state.shipMesh.traverse((child) => {
-            if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
-              child.material.emissiveIntensity = 0.15 + intensity * 0.5;
-            }
-          });
-        }
       }
 
       // Shield bubble
@@ -365,53 +565,89 @@ export class ShipEffects {
         }
       }
 
-      // Exhaust particles
+      // Warp trail strips
       if (player.speed > 0 && state.shipMesh) {
-        state.exhaust.visible = true;
         const stats = SHIP_STATS[player.shipType];
         const maxSpeed = stats?.speed ?? 12;
         const t = player.speed / maxSpeed;
-        const count = state.exhaustPositions.length / 3;
+        const trailLen = TRAIL_MIN_LENGTH + t * t * (TRAIL_MAX_LENGTH - TRAIL_MIN_LENGTH);
 
-        for (let j = 0; j < count; j++) {
-          const frac = (j + 1) / count;
-          const dist = 200 + frac * (200 + 600 * t);
-          const spread = (Math.random() - 0.5) * 100 * frac;
-          // Exhaust goes backward in local space (positive Z = aft)
-          state.exhaustPositions[j * 3] = spread;
-          state.exhaustPositions[j * 3 + 1] = 0;
-          state.exhaustPositions[j * 3 + 2] = dist;
+        // Set trail color from team nacelle colors
+        const nacColor = NACELLE_COLORS[player.team] ?? NACELLE_COLORS[IND];
+        state.trailUniforms.uColor.value.set(nacColor);
+        state.trailUniforms.uBrightness.value = 0.4 + t * 0.6;
+
+        // Also update cloned material on right trail
+        const rightUniforms = ((state.trailRight.material as THREE.ShaderMaterial).uniforms) as typeof state.trailUniforms;
+        rightUniforms.uColor.value.set(nacColor);
+        rightUniforms.uBrightness.value = state.trailUniforms.uBrightness.value;
+
+        // Update trail geometry positions — scale Z by trail length, offset X by nacelle position
+        for (const [trail, xOff] of [[state.trailLeft, -NACELLE_OFFSET], [state.trailRight, NACELLE_OFFSET]] as [THREE.Mesh, number][]) {
+          trail.visible = true;
+          const posAttr = trail.geometry.getAttribute('position') as THREE.BufferAttribute;
+          const arr = posAttr.array as Float32Array;
+          for (let vi = 0; vi <= TRAIL_SEGMENTS; vi++) {
+            const frac = vi / TRAIL_SEGMENTS;
+            const z = NACELLE_Z_START + frac * trailLen;
+            // Slight width taper toward tail
+            const widthScale = 1 - frac * 0.6;
+            const leftIdx = vi * 2;
+            const rightIdx = vi * 2 + 1;
+            arr[leftIdx * 3] = xOff - TRAIL_WIDTH * widthScale;
+            arr[leftIdx * 3 + 2] = z;
+            arr[rightIdx * 3] = xOff + TRAIL_WIDTH * widthScale;
+            arr[rightIdx * 3 + 2] = z;
+          }
+          posAttr.needsUpdate = true;
+          // Match ship banking so trails tilt with the ship
+          trail.rotation.z = state.shipMesh.rotation.z;
+          trail.rotation.y = state.shipMesh.rotation.y;
         }
-        (state.exhaust.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
-        (state.exhaust.material as THREE.PointsMaterial).opacity = 0.3 + t * 0.5;
       } else {
-        state.exhaust.visible = false;
+        state.trailLeft.visible = false;
+        state.trailRight.visible = false;
       }
 
-      // Hull damage sparks — burst when hull decreases (set by net.ts)
-      const hullHitAge = now - player.hullHitTime;
-      if (player.hullHitTime > 0 && hullHitAge < SPARK_HIT_DURATION) {
-        state.sparks.visible = true;
-        const t = hullHitAge / SPARK_HIT_DURATION;
-        const fade = 1.0 - t * t;
+      // Hull damage explosions — detect damage increase (hull field = damage taken, higher = worse)
+      if (player.hull > state.lastHull && state.lastHull >= 0) {
+        state.hullHitTime = now;
+        seedExplosion(state.expBasePos, state.expVelocity, state.expDelay, state.expSize, EXPLOSION_COUNT);
+      }
+      const hullHitAge = now - state.hullHitTime;
+      if (state.hullHitTime > 0 && hullHitAge < EXPLOSION_DURATION) {
+        state.explosion.visible = true;
+        const tNorm = hullHitAge / EXPLOSION_DURATION; // 0..1
+        const tSec = hullHitAge / 1000;
 
-        // Distribute sparks randomly within the 3D shield sphere
-        for (let j = 0; j < SPARK_COUNT; j++) {
-          const r = SHIELD_RADIUS * Math.cbrt(Math.random());
-          const theta = Math.random() * TWO_PI;
-          const phi = Math.acos(2 * Math.random() - 1);
-          state.sparkPositions[j * 3] = r * Math.sin(phi) * Math.cos(theta);
-          state.sparkPositions[j * 3 + 1] = r * Math.cos(phi);
-          state.sparkPositions[j * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+        // Per-particle: advance positions, hide if not yet started or already faded
+        const posArr = state.expPositions;
+        let maxSize = 0;
+        for (let j = 0; j < EXPLOSION_COUNT; j++) {
+          const j3 = j * 3;
+          const delay = state.expDelay[j];
+          const localT = (tNorm - delay) / (1 - delay); // particle-local 0..1
+          if (localT < 0 || localT > 1) {
+            // Not yet started or done — park off-screen
+            posArr[j3] = 0; posArr[j3 + 1] = -99999; posArr[j3 + 2] = 0;
+          } else {
+            const localSec = (hullHitAge - delay * EXPLOSION_DURATION) / 1000;
+            posArr[j3]     = state.expBasePos[j3]     + state.expVelocity[j3]     * localSec;
+            posArr[j3 + 1] = state.expBasePos[j3 + 1] + state.expVelocity[j3 + 1] * localSec;
+            posArr[j3 + 2] = state.expBasePos[j3 + 2] + state.expVelocity[j3 + 2] * localSec;
+          }
+          if (state.expSize[j] > maxSize) maxSize = state.expSize[j];
         }
-        (state.sparks.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
-        (state.sparks.material as THREE.PointsMaterial).opacity = fade;
-        (state.sparks.material as THREE.PointsMaterial).size = 200;
+        const posAttr = state.explosion.geometry.getAttribute('position') as THREE.BufferAttribute;
+        posAttr.needsUpdate = true;
 
-        const sparkColor = (state.sparks.material as THREE.PointsMaterial).color;
-        sparkColor.setRGB(1.0, 0.6 + 0.4 * fade, fade * 0.5);
+        const fade = Math.max(0, 1.0 - tNorm * tNorm);
+        const mat = state.explosion.material as THREE.PointsMaterial;
+        mat.opacity = fade;
+        mat.size = maxSize * fade;
+        mat.color.setRGB(1.0, 0.3 + 0.6 * fade, fade * 0.2);
       } else {
-        state.sparks.visible = false;
+        state.explosion.visible = false;
       }
 
       // Label
@@ -429,6 +665,7 @@ export class ShipEffects {
 
       // Update tracking
       state.lastShield = player.shield;
+      state.lastHull = player.hull;
       state.prevDir = player.dir;
     }
   }
