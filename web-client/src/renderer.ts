@@ -1,14 +1,13 @@
 /**
  * NeoNetrek Renderer
  *
- * Three.js WebGL tactical view + Canvas 2D galactic view (side-by-side),
+ * Three.js WebGL tactical view + Three.js WebGL galactic view (side-by-side),
  * plus HTML status bar, player list, and message panel.
  * Overlay canvas for warning text, help, MOTD, and outfit UI.
  */
 
-import { GameState, Player, Message } from './state';
+import { GameState, Message } from './state';
 import {
-  GWIDTH,
   PALIVE, PEXPLODE, PFREE,
   PFSHIELD, PFCLOAK, PFORBIT, PFREPAIR, PFBOMB,
   PFGREEN, PFYELLOW, PFRED,
@@ -20,8 +19,7 @@ import {
   MINDIV, MTEAM, MALL, MGOD,
 } from './constants';
 import { TacticalScene } from './tactical/TacticalScene';
-
-const TWO_PI = Math.PI * 2;
+import { GalacticScene } from './galactic/GalacticScene';
 
 // Status bar configuration
 interface BarRef {
@@ -34,7 +32,7 @@ export class Renderer {
   private galCanvas: HTMLCanvasElement;
   private overlayCanvas: HTMLCanvasElement;
   private overlayCtx: CanvasRenderingContext2D;
-  private galCtx: CanvasRenderingContext2D;
+  private galacticScene: GalacticScene;
   private state: GameState;
   private _tacWidth: number;
   private _tacHeight: number;
@@ -69,6 +67,7 @@ export class Renderer {
   constructor(
     tacCanvas: HTMLCanvasElement,
     galCanvas: HTMLCanvasElement,
+    galacticLabelsEl: HTMLElement,
     state: GameState,
     statusBar: HTMLElement,
     playerList: HTMLElement,
@@ -89,14 +88,14 @@ export class Renderer {
     this.overlayCanvas = document.getElementById('tactical-overlay') as HTMLCanvasElement;
     this.overlayCtx = this.overlayCanvas.getContext('2d')!;
 
-    // Galactic canvas stays 2D
-    this.galCtx = galCanvas.getContext('2d')!;
-
     // Label container for CSS2DRenderer
     const labelContainer = document.getElementById('tactical-labels')!;
 
     // Create Three.js tactical scene (takes over #tactical canvas for WebGL)
     this.tacticalScene = new TacticalScene(tacCanvas, labelContainer);
+
+    // Create Three.js galactic scene (separate WebGL context)
+    this.galacticScene = new GalacticScene(galCanvas, galacticLabelsEl);
 
     this.initStatusBar();
     this.initPlayerListHeader();
@@ -121,14 +120,10 @@ export class Renderer {
     this._galCanvasSize = galSize;
     const dpr = window.devicePixelRatio || 1;
 
-    // Galactic canvas: standard 2D (square)
-    this.galCanvas.width = galSize * dpr;
-    this.galCanvas.height = galSize * dpr;
+    // Galactic canvas: Three.js WebGL (square)
     this.galCanvas.style.width = `${galSize}px`;
     this.galCanvas.style.height = `${galSize}px`;
-    this.galCtx = this.galCanvas.getContext('2d')!;
-    this.galCtx.scale(dpr, dpr);
-    this.galCtx.font = '10px monospace';
+    this.galacticScene.resize(galSize, galSize);
 
     // Tactical canvas: WebGL (rectangular)
     this.tacCanvas.style.width = `${tacWidth}px`;
@@ -168,11 +163,9 @@ export class Renderer {
       this.renderOutfit(oCtx, w, h, this.state.myTeam);
 
       // Clear galactic during outfit
-      const gCtx = this.galCtx;
-      const gSize = this._galCanvasSize;
-      gCtx.fillStyle = '#000';
-      gCtx.fillRect(0, 0, gSize, gSize);
+      this.galacticScene.clear();
 
+      this.updateStatusBar();
       if (this._showHelp) this.renderHelp(oCtx, w, h);
       this.isTacticalMode = false;
       return;
@@ -334,7 +327,25 @@ export class Renderer {
 
   private updateStatusBar() {
     const me = this.state.myNumber >= 0 ? this.state.players[this.state.myNumber] : null;
-    if (!me || me.status === PFREE) return;
+    const active = me && me.status !== PFREE && this.state.phase === 'alive';
+
+    // Disabled appearance when not actively playing
+    this.statusBarEl.style.opacity = active ? '1' : '0.35';
+
+    if (!active) {
+      this.setBar('sh', 0, 100);
+      this.setBar('hu', 0, 100);
+      this.setBar('fu', 0, 100);
+      this.setBar('wt', 0, 100);
+      this.setBar('et', 0, 100);
+      this.speedEl.textContent = 'Spd:0';
+      this.armiesEl.textContent = 'Arm:0';
+      this.killsEl.textContent = 'K:0.00';
+      this.flagsEl.textContent = '';
+      this.alertEl.style.background = '#00880044';
+      this.lagEl.textContent = '';
+      return;
+    }
 
     const stats = SHIP_STATS[me.shipType];
     const maxShield = stats?.shields ?? 100;
@@ -486,88 +497,117 @@ export class Renderer {
   }
 
   // ============================================================
-  // Galactic View (Canvas 2D — unchanged)
+  // Galactic View (Three.js WebGL)
   // ============================================================
 
   private renderGalactic() {
-    const ctx = this.galCtx;
-    const s = this.state;
-    const size = this._galCanvasSize;
-    const scale = size / GWIDTH;
-
-    ctx.save();
-    ctx.textAlign = 'left';
-    ctx.font = '10px monospace';
-
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, size, size);
-
-    // Grid - quadrant borders
-    ctx.strokeStyle = '#222';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(size / 2, 0); ctx.lineTo(size / 2, size);
-    ctx.moveTo(0, size / 2); ctx.lineTo(size, size / 2);
-    ctx.stroke();
-
-    // Team labels in corners
-    ctx.font = '12px monospace';
-    ctx.fillStyle = TEAM_COLORS[ROM]; ctx.fillText('ROM', 8, 16);
-    ctx.fillStyle = TEAM_COLORS[KLI]; ctx.fillText('KLI', size - 36, 16);
-    ctx.fillStyle = TEAM_COLORS[FED]; ctx.fillText('FED', 8, size - 8);
-    ctx.fillStyle = TEAM_COLORS[ORI]; ctx.fillText('ORI', size - 36, size - 8);
-    ctx.font = '10px monospace';
-
-    // Draw planets
-    ctx.textAlign = 'center';
-    for (const planet of s.planets) {
-      if (!planet.name) continue;
-      const sx = planet.x * scale;
-      const sy = planet.y * scale;
-      const color = TEAM_COLORS[planet.owner] ?? '#888';
-
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(sx, sy, 3, 0, TWO_PI);
-      ctx.fill();
-
-      ctx.fillText(planet.name.substring(0, 3), sx, sy + 12);
-    }
-
-    // Draw players
-    for (const player of s.players) {
-      if (player.status !== PALIVE) continue;
-      if (player.flags & PFCLOAK && player.number !== s.myNumber) continue;
-
-      const sx = player.x * scale;
-      const sy = player.y * scale;
-      const color = player.number === s.myNumber ? '#fff' : (TEAM_COLORS[player.team] ?? '#888');
-      const teamLetter = TEAM_LETTERS[player.team] ?? '?';
-
-      ctx.fillStyle = color;
-      ctx.fillText(`${teamLetter}${player.number}`, sx, sy + 4);
-    }
-    ctx.textAlign = 'left';
-
-    // Tactical viewport box — matches actual camera frustum dimensions
-    if (s.myNumber >= 0 && s.players[s.myNumber].status === PALIVE) {
-      const me = s.players[s.myNumber];
-      const { halfW, halfH } = this.tacticalScene.getVisibleHalfExtents();
-      const mx = me.x * scale;
-      const my = me.y * scale;
-      const sw = halfW * scale;
-      const sh = halfH * scale;
-
-      ctx.strokeStyle = '#444';
-      ctx.strokeRect(mx - sw, my - sh, sw * 2, sh * 2);
-    }
-
-    ctx.restore();
+    this.galacticScene.render(this.state, this.tacticalScene.getVisibleHalfExtents());
   }
 
   // ============================================================
   // Outfit Selection Screen (overlay canvas for UI, 3D for ship)
   // ============================================================
+
+  private drawTeamLogo(
+    ctx: CanvasRenderingContext2D,
+    team: number,
+    cx: number,
+    cy: number,
+    size: number,
+    color: string,
+    glow: boolean,
+  ) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    if (glow) {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 8;
+    }
+    const s = size / 2;
+
+    if (team === FED) {
+      // Delta / chevron — upward-pointing arrowhead with horizontal bar
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s);            // top point
+      ctx.lineTo(cx - s * 0.7, cy + s * 0.6);  // bottom-left
+      ctx.lineTo(cx, cy + s * 0.15);     // inner notch
+      ctx.lineTo(cx + s * 0.7, cy + s * 0.6);  // bottom-right
+      ctx.closePath();
+      ctx.stroke();
+      // horizontal bar
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.55, cy + s * 0.25);
+      ctx.lineTo(cx + s * 0.55, cy + s * 0.25);
+      ctx.stroke();
+    } else if (team === ROM) {
+      // Raptor wings — spread bird-of-prey silhouette
+      ctx.beginPath();
+      // left wing
+      ctx.moveTo(cx, cy - s * 0.3);
+      ctx.lineTo(cx - s, cy + s * 0.1);
+      ctx.lineTo(cx - s * 0.85, cy + s * 0.55);
+      ctx.lineTo(cx - s * 0.3, cy + s * 0.2);
+      // body diamond
+      ctx.lineTo(cx, cy + s * 0.7);
+      // right wing (mirror)
+      ctx.lineTo(cx + s * 0.3, cy + s * 0.2);
+      ctx.lineTo(cx + s * 0.85, cy + s * 0.55);
+      ctx.lineTo(cx + s, cy + s * 0.1);
+      ctx.lineTo(cx, cy - s * 0.3);
+      ctx.closePath();
+      ctx.stroke();
+      // head
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s * 0.3);
+      ctx.lineTo(cx, cy - s * 0.75);
+      ctx.stroke();
+    } else if (team === KLI) {
+      // Trefoil — vertical blade with swept wings
+      ctx.beginPath();
+      // central blade
+      ctx.moveTo(cx, cy - s);
+      ctx.lineTo(cx - s * 0.12, cy + s * 0.1);
+      ctx.lineTo(cx + s * 0.12, cy + s * 0.1);
+      ctx.closePath();
+      ctx.stroke();
+      // left wing
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.12, cy - s * 0.1);
+      ctx.lineTo(cx - s * 0.9, cy + s * 0.7);
+      ctx.lineTo(cx - s * 0.55, cy + s * 0.45);
+      ctx.stroke();
+      // right wing
+      ctx.beginPath();
+      ctx.moveTo(cx + s * 0.12, cy - s * 0.1);
+      ctx.lineTo(cx + s * 0.9, cy + s * 0.7);
+      ctx.lineTo(cx + s * 0.55, cy + s * 0.45);
+      ctx.stroke();
+      // crossbar
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.5, cy + s * 0.3);
+      ctx.lineTo(cx + s * 0.5, cy + s * 0.3);
+      ctx.stroke();
+    } else if (team === ORI) {
+      // 8-pointed compass star
+      const inner = s * 0.35;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const angle = (i * Math.PI) / 4 - Math.PI / 2;
+        const r = i % 2 === 0 ? s : inner;
+        const px = cx + Math.cos(angle) * r;
+        const py = cy + Math.sin(angle) * r;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
 
   renderOutfit(ctx: CanvasRenderingContext2D, w: number, h: number, selectedTeam: number) {
     // Title
@@ -584,13 +624,15 @@ export class Renderer {
       { flag: ORI, name: 'Orion',      key: 'o', color: TEAM_COLORS[ORI] },
     ];
 
-    const gap = 10;
+    const gap = 14;
     const teamPad = 10;
-    const boxW = Math.min(90, Math.floor((w - teamPad * 2 - (teams.length - 1) * gap) / teams.length));
-    const boxH = 40;
+    const boxW = Math.min(110, Math.floor((w - teamPad * 2 - (teams.length - 1) * gap) / teams.length));
+    const boxH = 90;
     const totalW = teams.length * boxW + (teams.length - 1) * gap;
     const startX = (w - totalW) / 2;
     const teamY = 38;
+
+    const now = Date.now();
 
     for (let i = 0; i < teams.length; i++) {
       const t = teams[i];
@@ -598,23 +640,47 @@ export class Renderer {
       const available = !!(mask & t.flag);
       const selected = selectedTeam === t.flag;
 
+      // Background fill
       if (selected) {
-        ctx.fillStyle = t.color + '44';
+        ctx.fillStyle = t.color + '33';
+        ctx.fillRect(x, teamY, boxW, boxH);
+      } else {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.50)';
         ctx.fillRect(x, teamY, boxW, boxH);
       }
 
-      ctx.strokeStyle = available ? t.color : '#333';
-      ctx.lineWidth = selected ? 3 : 1;
-      ctx.strokeRect(x, teamY, boxW, boxH);
+      // Border — pulsing glow for selected
+      if (selected) {
+        const pulse = 0.5 + 0.5 * Math.sin(now / 300);
+        ctx.save();
+        ctx.shadowColor = t.color;
+        ctx.shadowBlur = 6 + pulse * 10;
+        ctx.strokeStyle = t.color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, teamY, boxW, boxH);
+        ctx.restore();
+      } else {
+        ctx.strokeStyle = available ? t.color : '#333';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, teamY, boxW, boxH);
+      }
 
+      // Logo
+      const logoCx = x + boxW / 2;
+      const logoCy = teamY + 24;
+      const logoColor = available ? t.color : '#444';
+      this.drawTeamLogo(ctx, t.flag, logoCx, logoCy, 32, logoColor, available && selected);
+
+      // Team name
       ctx.fillStyle = available ? t.color : '#444';
-      ctx.font = 'bold 12px monospace';
+      ctx.font = 'bold 11px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(t.name, x + boxW / 2, teamY + 18);
+      ctx.fillText(t.name, x + boxW / 2, teamY + 56);
 
+      // Key binding
       ctx.font = '10px monospace';
       ctx.fillStyle = available ? '#aaa' : '#333';
-      ctx.fillText(`[${t.key}]`, x + boxW / 2, teamY + 33);
+      ctx.fillText(`[ ${t.key} ]`, x + boxW / 2, teamY + 74);
     }
 
     if (selectedTeam) {
@@ -631,9 +697,23 @@ export class Renderer {
       const screenPositions = this.tacticalScene.getOutfitScreenPositions(w, h);
       const teamColor = TEAM_COLORS[selectedTeam];
 
-      // Determine panel size relative to canvas height
-      const panelW = Math.floor(w * 0.30);
-      const panelH = Math.floor(h * 0.28);
+      // Compute panel size from actual ship screen spacing (3 cols, 2 rows)
+      let panelW = Math.floor(w * 0.22);
+      let panelH = Math.floor(h * 0.38);
+      if (screenPositions.length >= 6) {
+        const colGap = Math.abs(screenPositions[1].x - screenPositions[0].x);
+        const rowGap = Math.abs(screenPositions[3].y - screenPositions[0].y);
+        if (colGap > 0) panelW = Math.floor(colGap * 0.92);
+        if (rowGap > 0) panelH = Math.floor(rowGap * 0.88);
+      }
+
+      // Stat bar config — labels, max values, stat keys
+      const statBars: { label: string; key: keyof typeof ships[0]['stats']; max: number }[] = [
+        { label: 'SPD', key: 'speed',      max: 12 },
+        { label: 'SHD', key: 'shields',    max: 130 },
+        { label: 'HUL', key: 'hull',       max: 200 },
+        { label: 'ARM', key: 'maxArmies',  max: 20 },
+      ];
 
       for (let i = 0; i < ships.length; i++) {
         const s = ships[i];
@@ -646,7 +726,7 @@ export class Renderer {
         const py = Math.round(Math.max(pad, Math.min(h - panelH - pad, pos.y - panelH / 2)));
 
         // Panel background — semi-transparent so 3D model shows through
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.40)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.50)';
         ctx.fillRect(px, py, panelW, panelH);
         ctx.strokeStyle = teamColor;
         ctx.lineWidth = 1;
@@ -654,25 +734,54 @@ export class Renderer {
 
         const cx = px + panelW / 2;
 
-        // Ship name at top of panel
+        // Ship name at top of panel with subtle underline
         ctx.font = 'bold 12px monospace';
         ctx.fillStyle = teamColor;
         ctx.textAlign = 'center';
         ctx.fillText(s.name, cx, py + 16);
+        // underline
+        const nameW = ctx.measureText(s.name).width;
+        ctx.strokeStyle = teamColor + '44';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx - nameW / 2, py + 19);
+        ctx.lineTo(cx + nameW / 2, py + 19);
+        ctx.stroke();
 
-        // Stats at bottom of panel
-        ctx.font = '10px monospace';
-        ctx.fillStyle = '#999';
+        // Stat bars at bottom of panel
         if (s.stats) {
-          const statsY = py + panelH - 40;
-          ctx.fillText(`Spd:${s.stats.speed}  Sh:${s.stats.shields}`, cx, statsY);
-          ctx.fillText(`Hu:${s.stats.hull}  Arm:${s.stats.maxArmies}`, cx, statsY + 13);
+          const barW = Math.min(60, panelW - 50);
+          const barH = 4;
+          const barStartX = cx - barW / 2 + 12;
+          const barsTopY = py + panelH - 56;
+
+          for (let b = 0; b < statBars.length; b++) {
+            const bar = statBars[b];
+            const by = barsTopY + b * 11;
+            const val = s.stats[bar.key] as number;
+            const fraction = Math.min(1, val / bar.max);
+
+            // Label
+            ctx.font = '9px monospace';
+            ctx.fillStyle = '#777';
+            ctx.textAlign = 'right';
+            ctx.fillText(bar.label, barStartX - 4, by + 4);
+
+            // Bar background
+            ctx.fillStyle = '#222';
+            ctx.fillRect(barStartX, by, barW, barH);
+
+            // Bar fill
+            ctx.fillStyle = teamColor;
+            ctx.fillRect(barStartX, by, Math.round(barW * fraction), barH);
+          }
         }
 
         // Key binding at very bottom
         ctx.font = '11px monospace';
         ctx.fillStyle = '#aaa';
-        ctx.fillText(`[${s.key}]`, cx, py + panelH - 6);
+        ctx.textAlign = 'center';
+        ctx.fillText(`[ ${s.key} ]`, cx, py + panelH - 6);
       }
     } else {
       ctx.fillStyle = '#666';
@@ -931,7 +1040,7 @@ export class Renderer {
     const viewKeys = [
       ['W', 'Declare war (all)'],
       ['M', 'Toggle sound'],
-      ['Shift+Q', 'Quit game'],
+      ['Shift+Q', 'Quit game (disconnect)'],
       ['?', 'This help screen'],
     ];
     for (const [key, desc] of viewKeys) {

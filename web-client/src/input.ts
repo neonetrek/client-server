@@ -33,6 +33,9 @@ export class InputHandler {
   // Help overlay
   private showHelp = false;
 
+  // Quit confirmation
+  private quitPending = false;
+
   // Arrow-key turning: last direction sent to avoid spamming dupes
   private lastSentDir = -1;
   // Fractional turn accumulator (mirrors server's p_subdir)
@@ -406,10 +409,18 @@ export class InputHandler {
         break;
       }
 
-      // Quit
+      // Quit game (disconnect and return to login)
       case 'Q':
-        if (e.shiftKey) {
-          this.net.sendQuit();
+        if (e.shiftKey && !e.repeat) {
+          if (!this.quitPending) {
+            this.quitPending = true;
+            this.state.warningText = 'Press Shift+Q again to quit';
+            this.state.warningTime = Date.now();
+            setTimeout(() => { this.quitPending = false; }, 3000);
+          } else {
+            this.quitPending = false;
+            this.net.quitAndReconnect();
+          }
         }
         break;
     }
@@ -496,13 +507,13 @@ export class InputHandler {
     const ships = [SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, SGALAXY];
 
     // Team box layout (must match renderer)
-    const gap = 12;
+    const gap = 14;
     const teamPad = 10;
-    const boxW = Math.min(100, Math.floor((size - teamPad * 2 - (teams.length - 1) * gap) / teams.length));
-    const boxH = 60;
+    const boxW = Math.min(110, Math.floor((size - teamPad * 2 - (teams.length - 1) * gap) / teams.length));
+    const boxH = 90;
     const totalW = teams.length * boxW + (teams.length - 1) * gap;
     const startX = (size - totalW) / 2;
-    const teamY = 55;
+    const teamY = 38;
 
     // Check team box clicks
     for (let i = 0; i < teams.length; i++) {
