@@ -58,6 +58,8 @@ function createMockNet() {
 function createMockRenderer() {
   return {
     canvasSize: 500,
+    canvasWidth: 800,
+    canvasHeight: 500,
     isGalacticView: false,
     toggleView: vi.fn(),
   } as any;
@@ -563,13 +565,14 @@ describe('InputHandler', () => {
       state.myNumber = 0;
     });
 
+    // Canvas is 800x500 (center at 400, 250)
     it('left click sends direction', () => {
-      mouseDown(0, 250, 0); // top center → north-ish
+      mouseDown(0, 400, 0); // top center → north
       expect(net.sendDirection).toHaveBeenCalled();
     });
 
     it('middle click sends phaser', () => {
-      mouseDown(1, 250, 0);
+      mouseDown(1, 400, 0);
       expect(net.sendPhaser).toHaveBeenCalled();
     });
 
@@ -579,12 +582,12 @@ describe('InputHandler', () => {
     });
 
     it('right click sends torpedo', () => {
-      mouseDown(2, 250, 0);
+      mouseDown(2, 400, 0);
       expect(net.sendTorp).toHaveBeenCalled();
     });
 
     it('north direction is ~0', () => {
-      mouseDown(0, 250, 0); // straight up
+      mouseDown(0, 400, 0); // straight up from center
       const dir = net.sendDirection.mock.calls[0][0];
       // Netrek dir: 0=north, wraps around 256
       // Straight up from center: angle = -PI/2, dir = 0
@@ -592,7 +595,7 @@ describe('InputHandler', () => {
     });
 
     it('east direction is ~64', () => {
-      mouseDown(0, 500, 250); // right
+      mouseDown(0, 800, 250); // right edge from center
       const dir = net.sendDirection.mock.calls[0][0];
       expect(Math.abs(dir - 64)).toBeLessThan(10);
     });

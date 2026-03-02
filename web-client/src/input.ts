@@ -456,19 +456,20 @@ export class InputHandler {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
-    const size = this.renderer.canvasSize;
+    const cw = this.renderer.canvasWidth;
+    const ch = this.renderer.canvasHeight;
 
     // Outfit screen: click on team/ship boxes
     if (this.state.phase === 'outfit' || this.state.phase === 'dead') {
-      this.handleOutfitClick(mx, my, size);
+      this.handleOutfitClick(mx, my, cw);
       return;
     }
 
     if (this.state.phase !== 'alive') return;
 
     // Calculate direction from center of canvas
-    const dx = mx - size / 2;
-    const dy = my - size / 2;
+    const dx = mx - cw / 2;
+    const dy = my - ch / 2;
     const angle = Math.atan2(dy, dx);
     // Convert to netrek direction (0-255, 0=north, clockwise)
     const dir = Math.round(((angle + Math.PI / 2) / (Math.PI * 2)) * 256) & 0xFF;

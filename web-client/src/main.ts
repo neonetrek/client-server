@@ -68,14 +68,17 @@ const wsUrl = `${protocol}//${window.location.host}${wsPath}`;
 statusEl.textContent = `Connecting to ${wsUrl}...`;
 net.connect(wsUrl);
 
-// Layout sizing: two square canvases side-by-side filling top portion
+// Layout sizing: tactical is wide (full panel width), galactic is square
 function resizeLayout() {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  // Each canvas is a square; two side-by-side must fit in viewport width
-  // and take ~60% of viewport height
-  const canvasSize = Math.min(Math.floor(vw / 2), Math.floor(vh * 0.6));
-  renderer.resizeCanvases(canvasSize);
+  // Height for both canvases: ~60% of viewport (same as before)
+  const canvasHeight = Math.min(Math.floor(vw / 2), Math.floor(vh * 0.6));
+  // Galactic stays square at that height
+  const galSize = canvasHeight;
+  // Tactical fills remaining width
+  const tacWidth = Math.floor(vw - galSize - 2);
+  renderer.resizeCanvases(tacWidth, canvasHeight, galSize);
   needsRender = true;
 }
 

@@ -294,7 +294,11 @@ export class NetrekConnection {
         me.armies = f[4] as number;
         // f[5] = tractor (bit 0x40 = active)
         me.flags = f[6] as number;
-        me.hull = f[7] as number;    // damage = hull damage taken
+        const newHull = f[7] as number;
+        if (newHull < me.hull && me.status === 2) { // hull decreased = ship took damage
+          me.hullHitTime = Date.now();
+        }
+        me.hull = newHull;           // remaining hull strength (higher = healthier)
         me.shield = f[8] as number;
         me.fuel = f[9] as number;
         me.eTemp = f[10] as number;

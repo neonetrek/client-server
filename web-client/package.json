@@ -11,8 +11,12 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "@types/three": "^0.183.1",
     "typescript": "^5.3.3",
     "vite": "^5.0.12",
     "vitest": "^1.2.0"
+  },
+  "dependencies": {
+    "three": "^0.183.2"
   }
 }

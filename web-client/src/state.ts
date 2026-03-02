@@ -33,6 +33,7 @@ export interface Player {
   tractTarget: number;  // player being tractored/repressed (-1 = none)
   lastShield: number;   // previous shield value for hit detection
   prevDir: number;      // previous direction for banking
+  hullHitTime: number;  // timestamp when hull damage was last detected
 }
 
 export interface Torpedo {
@@ -136,7 +137,7 @@ function createPlayer(num: number): Player {
     name: '', login: '', rank: 0, kills: 0,
     hostile: 0, war: 0, armies: 0,
     fuel: 0, shield: 0, hull: 0, wTemp: 0, eTemp: 0, explodeStart: 0,
-    tractTarget: -1, lastShield: 0, prevDir: 0,
+    tractTarget: -1, lastShield: 0, prevDir: 0, hullHitTime: 0,
   };
 }
 

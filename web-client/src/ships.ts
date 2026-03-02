@@ -12,7 +12,7 @@ import {
   SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, STARBASE as STARBASE_TYPE, SGALAXY,
 } from './constants';
 
-interface ShipPath {
+export interface ShipPath {
   hull: number[][];       // polygon vertices [[x,y], ...]
   details?: number[][][]; // additional line segments for detail strokes
 }
@@ -539,7 +539,7 @@ const ORI_SHIPS: Record<number, ShipPath> = {
   [SGALAXY]: ORI_GALAXY,
 };
 
-const SHIP_PATHS: Record<number, Record<number, ShipPath>> = {
+export const SHIP_PATHS: Record<number, Record<number, ShipPath>> = {
   [FED]: FED_SHIPS,
   [ROM]: ROM_SHIPS,
   [KLI]: KLI_SHIPS,
