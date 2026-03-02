@@ -86,6 +86,19 @@ function resizeLayout() {
 resizeLayout();
 window.addEventListener('resize', resizeLayout);
 
+// FPS counter (enabled with ?fps query param)
+const showFps = params.has('fps');
+let fpsEl: HTMLDivElement | null = null;
+let fpsFrames = 0;
+let fpsLastTime = performance.now();
+
+if (showFps) {
+  fpsEl = document.createElement('div');
+  fpsEl.style.cssText = 'position:fixed;top:4px;right:4px;font:11px monospace;color:#0f0;background:rgba(0,0,0,0.6);padding:2px 6px;z-index:9999;pointer-events:none;';
+  fpsEl.textContent = '-- fps';
+  document.body.appendChild(fpsEl);
+}
+
 // Render loop
 function gameLoop() {
   if (needsRender) {
@@ -93,6 +106,18 @@ function gameLoop() {
     renderer.render();
     needsRender = false;
   }
+
+  if (showFps) {
+    fpsFrames++;
+    const now = performance.now();
+    const elapsed = now - fpsLastTime;
+    if (elapsed >= 1000) {
+      fpsEl!.textContent = `${Math.round(fpsFrames * 1000 / elapsed)} fps`;
+      fpsFrames = 0;
+      fpsLastTime = now;
+    }
+  }
+
   requestAnimationFrame(gameLoop);
 }
 requestAnimationFrame(gameLoop);

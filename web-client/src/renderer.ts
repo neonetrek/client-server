@@ -389,9 +389,10 @@ export class Renderer {
   private setBar(id: string, value: number, max: number) {
     const bar = this.bars[id];
     if (!bar) return;
-    const pct = Math.min(100, Math.max(0, (value / max) * 100));
+    const clamped = Math.max(0, value);
+    const pct = Math.min(100, (clamped / max) * 100);
     bar.fill.style.width = `${pct}%`;
-    bar.value.textContent = `${value}`;
+    bar.value.textContent = `${clamped}`;
   }
 
   // ============================================================
