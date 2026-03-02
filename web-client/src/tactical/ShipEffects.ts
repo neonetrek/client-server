@@ -107,10 +107,18 @@ const NACELLE_COLORS: Record<number, number> = {
 
 const trailVertexShader = /* glsl */ `
   attribute float alpha;
+  attribute float aFrac;
+  attribute float aSide;
+  uniform float uTrailLen;
+  uniform float uXOffset;
   varying float vAlpha;
   void main() {
     vAlpha = alpha;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    float z = 200.0 + aFrac * uTrailLen;
+    float widthScale = 1.0 - aFrac * 0.6;
+    float x = uXOffset + aSide * 60.0 * widthScale;
+    vec3 pos = vec3(x, 0.0, z);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
   }
 `;
 
@@ -127,33 +135,32 @@ const trailFragmentShader = /* glsl */ `
   }
 `;
 
-/** Build a trail strip geometry lying in XZ plane, TRAIL_SEGMENTS quads */
+/** Build a trail strip geometry with GPU-driven positioning via aFrac/aSide attributes */
 function buildTrailGeometry(): THREE.BufferGeometry {
   const vertCount = (TRAIL_SEGMENTS + 1) * 2;
-  const positions = new Float32Array(vertCount * 3);
+  const positions = new Float32Array(vertCount * 3); // placeholder, shader overrides
   const alphas = new Float32Array(vertCount);
+  const fracs = new Float32Array(vertCount);
+  const sides = new Float32Array(vertCount);
   const indices: number[] = [];
 
   for (let i = 0; i <= TRAIL_SEGMENTS; i++) {
     const t = i / TRAIL_SEGMENTS; // 0 = ship end, 1 = tail end
-    const z = t; // will be scaled in update
     const leftIdx = i * 2;
     const rightIdx = i * 2 + 1;
-
-    // Left vertex
-    positions[leftIdx * 3] = -TRAIL_WIDTH;
-    positions[leftIdx * 3 + 1] = 0;
-    positions[leftIdx * 3 + 2] = z;
-
-    // Right vertex
-    positions[rightIdx * 3] = TRAIL_WIDTH;
-    positions[rightIdx * 3 + 1] = 0;
-    positions[rightIdx * 3 + 2] = z;
 
     // Alpha: bright at ship (t=0), fading to 0 at tail (t=1)
     const a = (1 - t) * (1 - t); // quadratic falloff
     alphas[leftIdx] = a;
     alphas[rightIdx] = a;
+
+    // Fraction along trail (constant per vertex, used by shader)
+    fracs[leftIdx] = t;
+    fracs[rightIdx] = t;
+
+    // Side: -1 for left, +1 for right (used by shader for X offset)
+    sides[leftIdx] = -1;
+    sides[rightIdx] = 1;
 
     // Quad indices
     if (i < TRAIL_SEGMENTS) {
@@ -169,6 +176,8 @@ function buildTrailGeometry(): THREE.BufferGeometry {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('alpha', new THREE.Float32BufferAttribute(alphas, 1));
+  geo.setAttribute('aFrac', new THREE.Float32BufferAttribute(fracs, 1));
+  geo.setAttribute('aSide', new THREE.Float32BufferAttribute(sides, 1));
   geo.setIndex(indices);
   return geo;
 }
@@ -285,7 +294,8 @@ interface ShipVisualState {
   cloakUniforms: { uTime: { value: number }; uOpacity: { value: number }; uHitFlash: { value: number }; uColor: { value: THREE.Color } };
   trailLeft: THREE.Mesh;
   trailRight: THREE.Mesh;
-  trailUniforms: { uColor: { value: THREE.Color }; uBrightness: { value: number } };
+  trailLeftUniforms: { uColor: { value: THREE.Color }; uBrightness: { value: number }; uTrailLen: { value: number }; uXOffset: { value: number } };
+  trailRightUniforms: { uColor: { value: THREE.Color }; uBrightness: { value: number }; uTrailLen: { value: number }; uXOffset: { value: number } };
   explosion: THREE.Points;
   expPositions: Float32Array;
   expBasePos: Float32Array;
@@ -303,6 +313,8 @@ interface ShipVisualState {
   prevDir: number;
   lastTeam: number;
   lastShipType: number;
+  lastLabelText: string;
+  lastLabelColor: string;
 }
 
 export class ShipEffects {
@@ -362,13 +374,16 @@ export class ShipEffects {
       cloak.visible = false;
       g.add(cloak);
 
-      // Warp trail strips (left + right nacelle)
-      const trailUniforms = {
+      // Warp trail strips (left + right nacelle) — GPU-driven positioning
+      const sharedTrailGeo = buildTrailGeometry();
+      const trailLeftUniforms = {
         uColor: { value: new THREE.Color(0x4488ff) },
         uBrightness: { value: 0 },
+        uTrailLen: { value: 0 },
+        uXOffset: { value: -NACELLE_OFFSET },
       };
-      const trailMat = new THREE.ShaderMaterial({
-        uniforms: trailUniforms,
+      const trailLeftMat = new THREE.ShaderMaterial({
+        uniforms: trailLeftUniforms,
         vertexShader: trailVertexShader,
         fragmentShader: trailFragmentShader,
         transparent: true,
@@ -376,11 +391,27 @@ export class ShipEffects {
         side: THREE.DoubleSide,
         depthWrite: false,
       });
-      const trailLeft = new THREE.Mesh(buildTrailGeometry(), trailMat);
+      const trailLeft = new THREE.Mesh(sharedTrailGeo, trailLeftMat);
       trailLeft.frustumCulled = false;
       trailLeft.visible = false;
       g.add(trailLeft);
-      const trailRight = new THREE.Mesh(buildTrailGeometry(), trailMat.clone());
+
+      const trailRightUniforms = {
+        uColor: { value: new THREE.Color(0x4488ff) },
+        uBrightness: { value: 0 },
+        uTrailLen: { value: 0 },
+        uXOffset: { value: NACELLE_OFFSET },
+      };
+      const trailRightMat = new THREE.ShaderMaterial({
+        uniforms: trailRightUniforms,
+        vertexShader: trailVertexShader,
+        fragmentShader: trailFragmentShader,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+      const trailRight = new THREE.Mesh(sharedTrailGeo, trailRightMat);
       trailRight.frustumCulled = false;
       trailRight.visible = false;
       g.add(trailRight);
@@ -425,7 +456,8 @@ export class ShipEffects {
         cloakUniforms,
         trailLeft,
         trailRight,
-        trailUniforms,
+        trailLeftUniforms,
+        trailRightUniforms,
         explosion,
         expPositions,
         expBasePos,
@@ -442,6 +474,8 @@ export class ShipEffects {
         prevDir: 0,
         lastTeam: -1,
         lastShipType: -1,
+        lastLabelText: '',
+        lastLabelColor: '',
       });
     }
   }
@@ -565,45 +599,32 @@ export class ShipEffects {
         }
       }
 
-      // Warp trail strips
+      // Warp trail strips — GPU-driven, just update uniforms
       if (player.speed > 0 && state.shipMesh) {
         const stats = SHIP_STATS[player.shipType];
         const maxSpeed = stats?.speed ?? 12;
         const t = player.speed / maxSpeed;
         const trailLen = TRAIL_MIN_LENGTH + t * t * (TRAIL_MAX_LENGTH - TRAIL_MIN_LENGTH);
+        const brightness = 0.4 + t * 0.6;
 
-        // Set trail color from team nacelle colors
+        // Set trail color + length via uniforms (no CPU vertex updates)
         const nacColor = NACELLE_COLORS[player.team] ?? NACELLE_COLORS[IND];
-        state.trailUniforms.uColor.value.set(nacColor);
-        state.trailUniforms.uBrightness.value = 0.4 + t * 0.6;
+        state.trailLeftUniforms.uColor.value.set(nacColor);
+        state.trailLeftUniforms.uBrightness.value = brightness;
+        state.trailLeftUniforms.uTrailLen.value = trailLen;
 
-        // Also update cloned material on right trail
-        const rightUniforms = ((state.trailRight.material as THREE.ShaderMaterial).uniforms) as typeof state.trailUniforms;
-        rightUniforms.uColor.value.set(nacColor);
-        rightUniforms.uBrightness.value = state.trailUniforms.uBrightness.value;
+        state.trailRightUniforms.uColor.value.set(nacColor);
+        state.trailRightUniforms.uBrightness.value = brightness;
+        state.trailRightUniforms.uTrailLen.value = trailLen;
 
-        // Update trail geometry positions — scale Z by trail length, offset X by nacelle position
-        for (const [trail, xOff] of [[state.trailLeft, -NACELLE_OFFSET], [state.trailRight, NACELLE_OFFSET]] as [THREE.Mesh, number][]) {
-          trail.visible = true;
-          const posAttr = trail.geometry.getAttribute('position') as THREE.BufferAttribute;
-          const arr = posAttr.array as Float32Array;
-          for (let vi = 0; vi <= TRAIL_SEGMENTS; vi++) {
-            const frac = vi / TRAIL_SEGMENTS;
-            const z = NACELLE_Z_START + frac * trailLen;
-            // Slight width taper toward tail
-            const widthScale = 1 - frac * 0.6;
-            const leftIdx = vi * 2;
-            const rightIdx = vi * 2 + 1;
-            arr[leftIdx * 3] = xOff - TRAIL_WIDTH * widthScale;
-            arr[leftIdx * 3 + 2] = z;
-            arr[rightIdx * 3] = xOff + TRAIL_WIDTH * widthScale;
-            arr[rightIdx * 3 + 2] = z;
-          }
-          posAttr.needsUpdate = true;
-          // Match ship banking so trails tilt with the ship
-          trail.rotation.z = state.shipMesh.rotation.z;
-          trail.rotation.y = state.shipMesh.rotation.y;
-        }
+        state.trailLeft.visible = true;
+        state.trailRight.visible = true;
+
+        // Match ship banking so trails tilt with the ship
+        state.trailLeft.rotation.z = state.shipMesh.rotation.z;
+        state.trailLeft.rotation.y = state.shipMesh.rotation.y;
+        state.trailRight.rotation.z = state.shipMesh.rotation.z;
+        state.trailRight.rotation.y = state.shipMesh.rotation.y;
       } else {
         state.trailLeft.visible = false;
         state.trailRight.visible = false;
@@ -650,18 +671,24 @@ export class ShipEffects {
         state.explosion.visible = false;
       }
 
-      // Label
+      // Label — only update DOM when text/color actually changes
       const isMe = player.number === myNumber;
       const tc = TEAM_COLORS[player.team] ?? TEAM_COLORS[IND];
+      const labelColor = isMe ? '#ffffff' : tc;
       const teamLetter = TEAM_LETTERS[player.team] ?? '?';
       const shipShort = SHIP_SHORT[player.shipType] ?? '??';
-      let labelText = `${teamLetter}${player.number}`;
-      labelText += `\n${shipShort}`;
+      let labelText = `${teamLetter}${player.number}\n${shipShort}`;
       if (player.kills >= 1) labelText += `\n${'★'.repeat(Math.min(5, Math.floor(player.kills)))}`;
       if (player.armies > 0) labelText += `\n♦${player.armies}`;
 
-      state.labelDiv.style.color = isMe ? '#ffffff' : tc;
-      state.labelDiv.textContent = labelText;
+      if (labelText !== state.lastLabelText) {
+        state.labelDiv.textContent = labelText;
+        state.lastLabelText = labelText;
+      }
+      if (labelColor !== state.lastLabelColor) {
+        state.labelDiv.style.color = labelColor;
+        state.lastLabelColor = labelColor;
+      }
 
       // Update tracking
       state.lastShield = player.shield;

@@ -32,6 +32,8 @@ interface PlanetVisual {
   homeRing: THREE.Mesh;
   label: CSS2DObject;
   labelDiv: HTMLDivElement;
+  lastOwner: number;
+  lastLabelHtml: string;
 }
 
 export class GalacticPlanets {
@@ -91,7 +93,7 @@ export class GalacticPlanets {
       g.add(label);
 
       this.group.add(g);
-      this.visuals.push({ group: g, innerGroup, sphere, homeRing, label, labelDiv });
+      this.visuals.push({ group: g, innerGroup, sphere, homeRing, label, labelDiv, lastOwner: -1, lastLabelHtml: '' });
     }
   }
 
@@ -120,19 +122,20 @@ export class GalacticPlanets {
         mat.needsUpdate = true;
       }
 
-      // Team-tinted color: mostly white so texture detail dominates, subtle team tint
-      const teamColor = hexToRgb(TEAM_COLORS[planet.owner] ?? TEAM_COLORS[IND]);
-      mat.color.copy(teamColor).lerp(WHITE, 0.8);
-      mat.emissive.copy(teamColor).lerp(WHITE, 0.7);
-      mat.emissiveIntensity = 0.8;
+      // Team-tinted color — only update when owner changes
+      if (planet.owner !== vis.lastOwner) {
+        const teamColor = hexToRgb(TEAM_COLORS[planet.owner] ?? TEAM_COLORS[IND]);
+        mat.color.copy(teamColor).lerp(WHITE, 0.8);
+        mat.emissive.copy(teamColor).lerp(WHITE, 0.7);
+        mat.emissiveIntensity = 0.8;
+        (vis.homeRing.material as THREE.MeshBasicMaterial).color.copy(teamColor);
+        vis.lastOwner = planet.owner;
+      }
 
       // Home ring
       vis.homeRing.visible = !!(planet.flags & PLHOME);
-      if (vis.homeRing.visible) {
-        (vis.homeRing.material as THREE.MeshBasicMaterial).color.copy(teamColor);
-      }
 
-      // Label
+      // Label — only update DOM when content changes
       const hexColor = TEAM_COLORS[planet.owner] ?? '#888888';
       let html = `<span style="color:${hexColor}">${planet.name}</span>`;
       if (planet.armies > 0) {
@@ -145,7 +148,10 @@ export class GalacticPlanets {
         if (planet.flags & PLAGRI) icons.push(SVG_AGRI);
         html += `<br><span style="color:#aaa;display:inline-flex;align-items:center;gap:1px">${icons.join('')}</span>`;
       }
-      vis.labelDiv.innerHTML = html;
+      if (html !== vis.lastLabelHtml) {
+        vis.labelDiv.innerHTML = html;
+        vis.lastLabelHtml = html;
+      }
     }
   }
 }

@@ -25,6 +25,8 @@ interface PlayerVisual {
   halo: THREE.Mesh;
   label: CSS2DObject;
   labelDiv: HTMLDivElement;
+  lastColor: string;
+  lastLabelText: string;
 }
 
 export class GalacticPlayers {
@@ -77,7 +79,7 @@ export class GalacticPlayers {
       g.add(label);
 
       this.group.add(g);
-      this.visuals.push({ group: g, cone, halo, label, labelDiv });
+      this.visuals.push({ group: g, cone, halo, label, labelDiv, lastColor: '', lastLabelText: '' });
     }
   }
 
@@ -114,10 +116,13 @@ export class GalacticPlayers {
       const angle = (player.dir / 256) * TWO_PI;
       vis.group.rotation.y = -angle;
 
-      // Color
+      // Color — only update material when color string changes
       const isMe = player.number === myNumber;
       const color = isMe ? '#ffffff' : (TEAM_COLORS[player.team] ?? TEAM_COLORS[IND]);
-      (vis.cone.material as THREE.MeshBasicMaterial).color.set(color);
+      if (color !== vis.lastColor) {
+        (vis.cone.material as THREE.MeshBasicMaterial).color.set(color);
+        vis.lastColor = color;
+      }
 
       // Halo for own player
       vis.halo.visible = isMe;
@@ -126,12 +131,16 @@ export class GalacticPlayers {
         (vis.halo.material as THREE.MeshBasicMaterial).opacity = pulse;
       }
 
-      // Label
+      // Label — only update DOM when text/color changes
       const tc = isMe ? '#ffffff' : (TEAM_COLORS[player.team] ?? '#888');
       const teamLetter = TEAM_LETTERS[player.team] ?? '?';
       const shipCode = SHIP_SHORT[player.shipType] ?? '??';
-      vis.labelDiv.style.color = tc;
-      vis.labelDiv.textContent = `${teamLetter}${player.number}\n${shipCode}`;
+      const labelText = `${teamLetter}${player.number}\n${shipCode}`;
+      if (labelText !== vis.lastLabelText) {
+        vis.labelDiv.textContent = labelText;
+        vis.labelDiv.style.color = tc;
+        vis.lastLabelText = labelText;
+      }
     }
   }
 }

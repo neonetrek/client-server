@@ -250,6 +250,8 @@ const FACILITY_MASK = PLREPAIR | PLFUEL | PLAGRI;
 export class PlanetTextureManager {
   private baseCache = new Map<string, HTMLCanvasElement>();
   private textureCache = new Map<number, THREE.CanvasTexture>();
+  // Per-planet composite canvases (reused, one per slot that needs a texture)
+  private compositeCache = new Map<number, HTMLCanvasElement>();
   private lastFlags = new Map<number, number>();
   private lastName = new Map<number, string>();
 
@@ -271,11 +273,16 @@ export class PlanetTextureManager {
       this.baseCache.set(name, base);
     }
 
-    // Composite: copy base + draw facility overlays
-    const composite = document.createElement('canvas');
-    composite.width = TEX_SIZE;
-    composite.height = TEX_SIZE;
+    // Reuse composite canvas per planet slot (avoid creating new DOM elements)
+    let composite = this.compositeCache.get(planetIndex);
+    if (!composite) {
+      composite = document.createElement('canvas');
+      composite.width = TEX_SIZE;
+      composite.height = TEX_SIZE;
+      this.compositeCache.set(planetIndex, composite);
+    }
     const ctx = composite.getContext('2d')!;
+    ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
     ctx.drawImage(base, 0, 0);
     drawFacilityOverlays(ctx, facFlags);
 

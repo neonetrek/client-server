@@ -17,21 +17,42 @@ const PLASMA_RADIUS = 40;
 const PHASER_DISPLAY_MS = 500;
 
 // ============================================================
+// Cached-ref interfaces (avoid traverse/getObjectByName per frame)
+// ============================================================
+
+interface TorpRefs {
+  group: THREE.Group;
+  core: THREE.Mesh;
+  halo: THREE.Mesh;
+  light: THREE.PointLight;
+  ghosts: THREE.Mesh[];
+}
+
+interface ExplosionRefs {
+  group: THREE.Group;
+  blast: THREE.Mesh;
+}
+
+interface BeamRefs {
+  group: THREE.Group;
+  outer: THREE.Mesh;
+  mid: THREE.Mesh;
+  core: THREE.Mesh;
+}
+
+// ============================================================
 // Torpedo visuals
 // ============================================================
 
-function createTorpGroup(): THREE.Group {
+function createTorpGroup(): TorpRefs {
   const g = new THREE.Group();
 
-  // Core: bright sphere
   const core = new THREE.Mesh(
     new THREE.SphereGeometry(TORP_RADIUS, 8, 6),
     new THREE.MeshBasicMaterial({ color: 0xffffff })
   );
-  core.name = 'core';
   g.add(core);
 
-  // Halo: larger translucent sphere
   const halo = new THREE.Mesh(
     new THREE.SphereGeometry(TORP_RADIUS * 3, 8, 6),
     new THREE.MeshBasicMaterial({
@@ -41,15 +62,12 @@ function createTorpGroup(): THREE.Group {
       blending: THREE.AdditiveBlending,
     })
   );
-  halo.name = 'halo';
   g.add(halo);
 
-  // Point light
   const light = new THREE.PointLight(0xff8800, 0.3, 800);
-  light.name = 'light';
   g.add(light);
 
-  // Trail ghosts
+  const ghosts: THREE.Mesh[] = [];
   for (let i = 0; i < 3; i++) {
     const ghost = new THREE.Mesh(
       new THREE.SphereGeometry(TORP_RADIUS * 0.7, 6, 4),
@@ -60,17 +78,17 @@ function createTorpGroup(): THREE.Group {
         blending: THREE.AdditiveBlending,
       })
     );
-    ghost.name = `ghost${i}`;
     g.add(ghost);
+    ghosts.push(ghost);
   }
 
-  return g;
+  return { group: g, core, halo, light, ghosts };
 }
 
-function createExplosionGroup(): THREE.Group {
+function createExplosionGroup(): ExplosionRefs {
   const g = new THREE.Group();
 
-  const sphere = new THREE.Mesh(
+  const blast = new THREE.Mesh(
     new THREE.SphereGeometry(TORP_RADIUS * 4, 8, 6),
     new THREE.MeshBasicMaterial({
       color: 0xffffff,
@@ -79,68 +97,34 @@ function createExplosionGroup(): THREE.Group {
       blending: THREE.AdditiveBlending,
     })
   );
-  sphere.name = 'blast';
-  g.add(sphere);
+  g.add(blast);
 
-  return g;
+  return { group: g, blast };
 }
 
 // ============================================================
-// Phaser beam visuals
+// Phaser / Tractor beam visuals
 // ============================================================
 
-function createPhaserGroup(): THREE.Group {
+function createBeamGroup(radii: [number, number, number], opacities: [number, number, number], color: number): BeamRefs {
   const g = new THREE.Group();
+  const meshes: THREE.Mesh[] = [];
 
-  // 3-layer beam: outer glow, mid, core
-  // Using cylinders stretched between source and target
-  for (const [name, radius, opacity] of [
-    ['outer', 40, 0.1],
-    ['mid', 20, 0.35],
-    ['core', 8, 0.8],
-  ] as [string, number, number][]) {
-    const geo = new THREE.CylinderGeometry(radius, radius, 1, 6, 1, true);
+  for (let i = 0; i < 3; i++) {
+    const geo = new THREE.CylinderGeometry(radii[i], radii[i], 1, 6, 1, true);
     const mat = new THREE.MeshBasicMaterial({
-      color: 0xffa030,
+      color,
       transparent: true,
-      opacity,
+      opacity: opacities[i],
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.name = name;
     g.add(mesh);
+    meshes.push(mesh);
   }
 
-  return g;
-}
-
-// ============================================================
-// Tractor/Pressor beam visuals
-// ============================================================
-
-function createTractorGroup(): THREE.Group {
-  const g = new THREE.Group();
-
-  for (const [name, radius, opacity] of [
-    ['outer', 25, 0.08],
-    ['mid', 12, 0.25],
-    ['core', 5, 0.6],
-  ] as [string, number, number][]) {
-    const geo = new THREE.CylinderGeometry(radius, radius, 1, 6, 1, true);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x00ff00,
-      transparent: true,
-      opacity,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.name = name;
-    g.add(mesh);
-  }
-
-  return g;
+  return { group: g, outer: meshes[0], mid: meshes[1], core: meshes[2] };
 }
 
 // ============================================================
@@ -150,19 +134,22 @@ function createTractorGroup(): THREE.Group {
 export class ProjectileMeshes {
   readonly group: THREE.Group;
 
-  // Torpedo pools
-  private torpGroups: THREE.Group[] = [];
-  private torpExplodeGroups: THREE.Group[] = [];
+  // Torpedo pools (cached refs)
+  private torpRefs: TorpRefs[] = [];
+  private torpExplodeRefs: ExplosionRefs[] = [];
 
-  // Plasma pools (reuse torp style but bigger)
-  private plasmaGroups: THREE.Group[] = [];
-  private plasmaExplodeGroups: THREE.Group[] = [];
+  // Plasma pools
+  private plasmaRefs: TorpRefs[] = [];
+  private plasmaExplodeRefs: ExplosionRefs[] = [];
 
-  // Phaser beams
-  private phaserGroups: THREE.Group[] = [];
+  // Phaser beams (cached refs)
+  private phaserRefs: BeamRefs[] = [];
 
-  // Tractor beams
-  private tractorGroups: THREE.Group[] = [];
+  // Tractor beams (cached refs)
+  private tractorRefs: BeamRefs[] = [];
+
+  // Base opacities for phaser layers
+  private static readonly PHASER_OPACITIES: [number, number, number] = [0.1, 0.35, 0.8];
 
   constructor() {
     this.group = new THREE.Group();
@@ -170,61 +157,55 @@ export class ProjectileMeshes {
     // Pre-allocate torpedo visuals (MAXPLAYER * MAXTORP = 256)
     const torpCount = MAXPLAYER * MAXTORP;
     for (let i = 0; i < torpCount; i++) {
-      const tg = createTorpGroup();
-      tg.visible = false;
-      this.torpGroups.push(tg);
-      this.group.add(tg);
+      const refs = createTorpGroup();
+      refs.group.visible = false;
+      this.torpRefs.push(refs);
+      this.group.add(refs.group);
 
-      const eg = createExplosionGroup();
-      eg.visible = false;
-      this.torpExplodeGroups.push(eg);
-      this.group.add(eg);
+      const erefs = createExplosionGroup();
+      erefs.group.visible = false;
+      this.torpExplodeRefs.push(erefs);
+      this.group.add(erefs.group);
     }
 
     // Pre-allocate plasma visuals (MAXPLAYER)
     for (let i = 0; i < MAXPLAYER; i++) {
-      const pg = createTorpGroup();
-      pg.visible = false;
+      const refs = createTorpGroup();
+      refs.group.visible = false;
       // Make plasma pink/magenta and larger
-      pg.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          const mat = child.material as THREE.MeshBasicMaterial;
-          mat.color.setHex(0xff00ff);
-        }
-        if (child instanceof THREE.PointLight) {
-          child.color.setHex(0xff00ff);
-        }
-      });
-      pg.scale.set(2, 2, 2);
-      this.plasmaGroups.push(pg);
-      this.group.add(pg);
+      refs.core.material = (refs.core.material as THREE.MeshBasicMaterial).clone();
+      (refs.core.material as THREE.MeshBasicMaterial).color.setHex(0xff00ff);
+      (refs.halo.material as THREE.MeshBasicMaterial).color.setHex(0xff00ff);
+      refs.light.color.setHex(0xff00ff);
+      for (const ghost of refs.ghosts) {
+        (ghost.material as THREE.MeshBasicMaterial).color.setHex(0xff00ff);
+      }
+      refs.group.scale.set(2, 2, 2);
+      this.plasmaRefs.push(refs);
+      this.group.add(refs.group);
 
-      const peg = createExplosionGroup();
-      peg.visible = false;
-      peg.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          (child.material as THREE.MeshBasicMaterial).color.setHex(0xff44ff);
-        }
-      });
-      peg.scale.set(2, 2, 2);
-      this.plasmaExplodeGroups.push(peg);
-      this.group.add(peg);
+      const erefs = createExplosionGroup();
+      erefs.group.visible = false;
+      (erefs.blast.material as THREE.MeshBasicMaterial).color.setHex(0xff44ff);
+      erefs.group.scale.set(2, 2, 2);
+      this.plasmaExplodeRefs.push(erefs);
+      this.group.add(erefs.group);
     }
 
     // Pre-allocate phaser beams (one per player)
     for (let i = 0; i < MAXPLAYER; i++) {
-      const ph = createPhaserGroup();
-      ph.visible = false;
-      this.phaserGroups.push(ph);
-      this.group.add(ph);
+      const refs = createBeamGroup([40, 20, 8], [0.1, 0.35, 0.8], 0xffa030);
+      refs.group.visible = false;
+      this.phaserRefs.push(refs);
+      this.group.add(refs.group);
     }
 
     // Pre-allocate tractor beams (one per player)
     for (let i = 0; i < MAXPLAYER; i++) {
-      const tr = createTractorGroup();
-      tr.visible = false;
-      this.tractorGroups.push(tr);
-      this.group.add(tr);
+      const refs = createBeamGroup([25, 12, 5], [0.08, 0.25, 0.6], 0x00ff00);
+      refs.group.visible = false;
+      this.tractorRefs.push(refs);
+      this.group.add(refs.group);
     }
   }
 
@@ -236,21 +217,21 @@ export class ProjectileMeshes {
     // --- Torpedoes ---
     for (let i = 0; i < state.torps.length; i++) {
       const torp = state.torps[i];
-      const tg = this.torpGroups[i];
-      const eg = this.torpExplodeGroups[i];
+      const refs = this.torpRefs[i];
+      const erefs = this.torpExplodeRefs[i];
 
       if (torp.status === TMOVE) {
         const dx = torp.x - playerX;
         const dz = torp.y - playerZ;
         if (Math.abs(dx) > halfRange || Math.abs(dz) > halfRange) {
-          tg.visible = false;
-          eg.visible = false;
+          refs.group.visible = false;
+          erefs.group.visible = false;
           continue;
         }
 
-        tg.visible = true;
-        eg.visible = false;
-        tg.position.set(torp.x, 15, torp.y);
+        refs.group.visible = true;
+        erefs.group.visible = false;
+        refs.group.position.set(torp.x, 15, torp.y);
 
         // Set color based on owner
         const owner = torp.owner >= 0 && torp.owner < MAXPLAYER ? state.players[torp.owner] : null;
@@ -258,107 +239,97 @@ export class ProjectileMeshes {
         const teamColor = TEAM_COLORS[owner?.team ?? IND] ?? '#888888';
         const color = isOwn ? 0xffaa3c : new THREE.Color(teamColor).getHex();
 
-        // Update colors
-        const halo = tg.getObjectByName('halo') as THREE.Mesh | undefined;
-        if (halo) (halo.material as THREE.MeshBasicMaterial).color.setHex(color);
-        const light = tg.getObjectByName('light') as THREE.PointLight | undefined;
-        if (light) light.color.setHex(color);
+        // Update colors via cached refs
+        (refs.halo.material as THREE.MeshBasicMaterial).color.setHex(color);
+        refs.light.color.setHex(color);
 
         // Pulsing halo
         const phase = now * 0.008 + torp.number;
         const pulse = Math.sin(phase) * 0.3 + 1.0;
-        if (halo) halo.scale.setScalar(pulse);
+        refs.halo.scale.setScalar(pulse);
 
         // Trail ghosts — position behind torpedo direction
         const dirRad = (torp.dir / 256) * TWO_PI;
-        for (let j = 0; j < 3; j++) {
-          const ghost = tg.getObjectByName(`ghost${j}`) as THREE.Mesh | undefined;
-          if (ghost) {
-            const dist = (j + 1) * TORP_RADIUS * 3;
-            // Trail goes backward: +sin(dir) in X, +cos(dir) in Z (since dir 0 = north = -Z)
-            ghost.position.set(
-              Math.sin(dirRad) * dist,
-              0,
-              Math.cos(dirRad) * dist
-            );
-          }
+        for (let j = 0; j < refs.ghosts.length; j++) {
+          const dist = (j + 1) * TORP_RADIUS * 3;
+          refs.ghosts[j].position.set(
+            Math.sin(dirRad) * dist,
+            0,
+            Math.cos(dirRad) * dist
+          );
         }
 
       } else if (torp.status === TEXPLODE) {
-        tg.visible = false;
+        refs.group.visible = false;
         const dx = torp.x - playerX;
         const dz = torp.y - playerZ;
         if (Math.abs(dx) > halfRange || Math.abs(dz) > halfRange) {
-          eg.visible = false;
+          erefs.group.visible = false;
           continue;
         }
-        eg.visible = true;
-        eg.position.set(torp.x, 15, torp.y);
+        erefs.group.visible = true;
+        erefs.group.position.set(torp.x, 15, torp.y);
 
-        // Expand and fade
-        const blast = eg.getObjectByName('blast') as THREE.Mesh | undefined;
-        if (blast) {
-          // Since we don't have exact explosion start, just show a static burst
-          (blast.material as THREE.MeshBasicMaterial).opacity = 0.6;
-          blast.scale.setScalar(2);
-        }
+        // Static burst via cached ref
+        (erefs.blast.material as THREE.MeshBasicMaterial).opacity = 0.6;
+        erefs.blast.scale.setScalar(2);
       } else {
-        tg.visible = false;
-        eg.visible = false;
+        refs.group.visible = false;
+        erefs.group.visible = false;
       }
     }
 
     // --- Plasmas ---
     for (let i = 0; i < state.plasmas.length; i++) {
       const plasma = state.plasmas[i];
-      const pg = this.plasmaGroups[i];
-      const peg = this.plasmaExplodeGroups[i];
+      const refs = this.plasmaRefs[i];
+      const erefs = this.plasmaExplodeRefs[i];
 
       if (plasma.status === PTMOVE) {
         const dx = plasma.x - playerX;
         const dz = plasma.y - playerZ;
         if (Math.abs(dx) > halfRange || Math.abs(dz) > halfRange) {
-          pg.visible = false;
-          peg.visible = false;
+          refs.group.visible = false;
+          erefs.group.visible = false;
           continue;
         }
-        pg.visible = true;
-        peg.visible = false;
-        pg.position.set(plasma.x, 15, plasma.y);
+        refs.group.visible = true;
+        erefs.group.visible = false;
+        refs.group.position.set(plasma.x, 15, plasma.y);
       } else if (plasma.status === PTEXPLODE) {
-        pg.visible = false;
+        refs.group.visible = false;
         const dx = plasma.x - playerX;
         const dz = plasma.y - playerZ;
         if (Math.abs(dx) > halfRange || Math.abs(dz) > halfRange) {
-          peg.visible = false;
+          erefs.group.visible = false;
           continue;
         }
-        peg.visible = true;
-        peg.position.set(plasma.x, 15, plasma.y);
+        erefs.group.visible = true;
+        erefs.group.position.set(plasma.x, 15, plasma.y);
       } else {
-        pg.visible = false;
-        peg.visible = false;
+        refs.group.visible = false;
+        erefs.group.visible = false;
       }
     }
 
     // --- Phasers ---
     for (let i = 0; i < state.phasers.length; i++) {
       const phaser = state.phasers[i];
-      const pg = this.phaserGroups[i];
+      const refs = this.phaserRefs[i];
 
       if (!phaser.fuseStart || now - phaser.fuseStart > PHASER_DISPLAY_MS) {
-        pg.visible = false;
+        refs.group.visible = false;
         continue;
       }
 
       if (phaser.number < 0 || phaser.number >= MAXPLAYER) {
-        pg.visible = false;
+        refs.group.visible = false;
         continue;
       }
 
       const owner = state.players[phaser.number];
       if (!owner || owner.status !== PALIVE) {
-        pg.visible = false;
+        refs.group.visible = false;
         continue;
       }
 
@@ -370,7 +341,7 @@ export class ProjectileMeshes {
       let tx: number, tz: number;
       if (phaser.status === PHHIT) {
         const target = phaser.target >= 0 && phaser.target < MAXPLAYER ? state.players[phaser.target] : null;
-        if (!target) { pg.visible = false; continue; }
+        if (!target) { refs.group.visible = false; continue; }
         tx = target.x;
         tz = target.y;
       } else if (phaser.status === PHHIT2) {
@@ -390,32 +361,26 @@ export class ProjectileMeshes {
       const length = Math.sqrt(dx * dx + dz * dz);
       const angle = Math.atan2(dx, dz);
 
-      pg.visible = true;
-      pg.position.set(midX, 10, midZ);
-      pg.rotation.set(0, angle, 0);
+      refs.group.visible = true;
+      refs.group.position.set(midX, 10, midZ);
+      refs.group.rotation.set(0, angle, 0);
 
-      // Scale cylinder height to beam length
-      pg.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.scale.set(1, length, 1);
-          child.rotation.x = Math.PI / 2;
-          child.position.set(0, 0, 0);
-        }
-      });
+      // Scale cylinders via cached refs (no traverse)
+      for (const mesh of [refs.outer, refs.mid, refs.core]) {
+        mesh.scale.set(1, length, 1);
+        mesh.rotation.x = Math.PI / 2;
+        mesh.position.set(0, 0, 0);
+      }
 
-      // Fade
+      // Fade via cached refs (no traverse)
       const elapsed = now - phaser.fuseStart;
       const t = elapsed / PHASER_DISPLAY_MS;
       const intensity = t < 0.1 ? 1.0 : 1.0 - (t - 0.1) / 0.9;
       const alpha = intensity * intensity;
 
-      pg.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          const mat = child.material as THREE.MeshBasicMaterial;
-          const baseOpacity = child.name === 'outer' ? 0.1 : child.name === 'mid' ? 0.35 : 0.8;
-          mat.opacity = baseOpacity * alpha;
-        }
-      });
+      (refs.outer.material as THREE.MeshBasicMaterial).opacity = ProjectileMeshes.PHASER_OPACITIES[0] * alpha;
+      (refs.mid.material as THREE.MeshBasicMaterial).opacity = ProjectileMeshes.PHASER_OPACITIES[1] * alpha;
+      (refs.core.material as THREE.MeshBasicMaterial).opacity = ProjectileMeshes.PHASER_OPACITIES[2] * alpha;
     }
 
     // --- Tractor / Pressor beams ---
@@ -428,9 +393,9 @@ export class ProjectileMeshes {
       const tp = state.players[target];
       if (tp.status !== PALIVE) continue;
 
-      if (tractorIdx >= this.tractorGroups.length) break;
-      const tg = this.tractorGroups[tractorIdx++];
-      tg.visible = true;
+      if (tractorIdx >= this.tractorRefs.length) break;
+      const refs = this.tractorRefs[tractorIdx++];
+      refs.group.visible = true;
 
       const sx = player.x;
       const sz = player.y;
@@ -444,25 +409,24 @@ export class ProjectileMeshes {
       const length = Math.sqrt(dx * dx + dz * dz);
       const angle = Math.atan2(dx, dz);
 
-      tg.position.set(midX, 20, midZ);
-      tg.rotation.set(0, angle, 0);
+      refs.group.position.set(midX, 20, midZ);
+      refs.group.rotation.set(0, angle, 0);
 
       const isPressor = !!(player.flags & PFPRESS);
       const beamColor = isPressor ? 0xff0000 : 0x00ff00;
 
-      tg.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.scale.set(1, length, 1);
-          child.rotation.x = Math.PI / 2;
-          child.position.set(0, 0, 0);
-          (child.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
-        }
-      });
+      // Update all 3 layers via cached refs (no traverse)
+      for (const mesh of [refs.outer, refs.mid, refs.core]) {
+        mesh.scale.set(1, length, 1);
+        mesh.rotation.x = Math.PI / 2;
+        mesh.position.set(0, 0, 0);
+        (mesh.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
+      }
     }
 
     // Hide unused tractor beams
-    for (let i = tractorIdx; i < this.tractorGroups.length; i++) {
-      this.tractorGroups[i].visible = false;
+    for (let i = tractorIdx; i < this.tractorRefs.length; i++) {
+      this.tractorRefs[i].group.visible = false;
     }
   }
 }
