@@ -5,13 +5,13 @@
  */
 
 import * as THREE from 'three';
-import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Player } from '../state';
 import {
   PALIVE, PFCLOAK, PFORBIT,
   TEAM_COLORS, TEAM_LETTERS, SHIP_SHORT, IND,
   MAXPLAYER,
 } from '../constants';
+import { ShipLabelData } from '../LabelRenderer';
 
 const MARKER_RADIUS = 800;
 const MARKER_HEIGHT = 20;
@@ -23,10 +23,9 @@ interface PlayerVisual {
   group: THREE.Group;
   cone: THREE.Mesh;
   halo: THREE.Mesh;
-  label: CSS2DObject;
-  labelDiv: HTMLDivElement;
   lastColor: string;
   lastLabelText: string;
+  lastLabelColor: string;
 }
 
 export class GalacticPlayers {
@@ -71,15 +70,8 @@ export class GalacticPlayers {
       halo.frustumCulled = false;
       g.add(halo);
 
-      // CSS2D label — small font, below the marker
-      const labelDiv = document.createElement('div');
-      labelDiv.style.cssText = 'font: 8px monospace; text-align: center; pointer-events: none; text-shadow: 0 0 3px #000; white-space: pre-line; line-height: 1.2;';
-      const label = new CSS2DObject(labelDiv);
-      label.position.set(0, -10, MARKER_RADIUS + 800);
-      g.add(label);
-
       this.group.add(g);
-      this.visuals.push({ group: g, cone, halo, label, labelDiv, lastColor: '', lastLabelText: '' });
+      this.visuals.push({ group: g, cone, halo, lastColor: '', lastLabelText: '', lastLabelColor: '' });
     }
   }
 
@@ -131,16 +123,27 @@ export class GalacticPlayers {
         (vis.halo.material as THREE.MeshBasicMaterial).opacity = pulse;
       }
 
-      // Label — only update DOM when text/color changes
+      // Label text computation — stored for getLabelData()
       const tc = isMe ? '#ffffff' : (TEAM_COLORS[player.team] ?? '#888');
       const teamLetter = TEAM_LETTERS[player.team] ?? '?';
       const shipCode = SHIP_SHORT[player.shipType] ?? '??';
-      const labelText = `${teamLetter}${player.number}\n${shipCode}`;
-      if (labelText !== vis.lastLabelText) {
-        vis.labelDiv.textContent = labelText;
-        vis.labelDiv.style.color = tc;
-        vis.lastLabelText = labelText;
-      }
+      vis.lastLabelText = `${teamLetter}${player.number}\n${shipCode}`;
+      vis.lastLabelColor = tc;
     }
+  }
+
+  /** Return label data for all visible players (for canvas overlay rendering) */
+  getLabelData(): ShipLabelData[] {
+    const result: ShipLabelData[] = [];
+    for (const vis of this.visuals) {
+      if (!vis.group.visible || !vis.lastLabelText) continue;
+      const pos = new THREE.Vector3(
+        vis.group.position.x,
+        vis.group.position.y - 10,
+        vis.group.position.z + MARKER_RADIUS + 800,
+      );
+      result.push({ worldPos: pos, text: vis.lastLabelText, color: vis.lastLabelColor });
+    }
+    return result;
   }
 }

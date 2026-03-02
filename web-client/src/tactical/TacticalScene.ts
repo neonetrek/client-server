@@ -7,7 +7,6 @@
  */
 
 import * as THREE from 'three';
-import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -25,6 +24,7 @@ import { ShipMeshFactory } from './ShipMeshFactory';
 import { ShipEffects } from './ShipEffects';
 import { ProjectileMeshes } from './ProjectileMeshes';
 import { BarrierWall } from './BarrierWall';
+import { LabelRenderer } from '../LabelRenderer';
 
 const TAC_RANGE = TWIDTH; // 20000
 const FOV = 60;
@@ -47,8 +47,8 @@ export class TacticalScene {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private webglRenderer: THREE.WebGLRenderer;
-  private css2dRenderer: CSS2DRenderer;
   private composer: EffectComposer;
+  private labelRenderer: LabelRenderer;
 
   // Sub-modules
   private grid: GridPlane;
@@ -85,7 +85,7 @@ export class TacticalScene {
   // Outfit ship types displayed (excludes Starbase)
   private static readonly OUTFIT_SHIP_TYPES = [SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, SGALAXY];
 
-  constructor(canvas: HTMLCanvasElement, labelContainer: HTMLElement) {
+  constructor(canvas: HTMLCanvasElement) {
     // Scene setup
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x000000);
@@ -107,13 +107,8 @@ export class TacticalScene {
     this.webglRenderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.webglRenderer.toneMappingExposure = 1.2;
 
-    // CSS2D renderer for labels
-    this.css2dRenderer = new CSS2DRenderer({ element: labelContainer });
-    this.css2dRenderer.setSize(300, 300);
-    this.css2dRenderer.domElement.style.position = 'absolute';
-    this.css2dRenderer.domElement.style.top = '0';
-    this.css2dRenderer.domElement.style.left = '0';
-    this.css2dRenderer.domElement.style.pointerEvents = 'none';
+    // Canvas 2D label renderer (replaces CSS2DRenderer)
+    this.labelRenderer = new LabelRenderer();
 
     // Post-processing: bloom
     this.composer = new EffectComposer(this.webglRenderer);
@@ -206,7 +201,6 @@ export class TacticalScene {
     const dpr = window.devicePixelRatio || 1;
     this.webglRenderer.setSize(width, height);
     this.webglRenderer.setPixelRatio(dpr);
-    this.css2dRenderer.setSize(width, height);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.composer.setSize(width * dpr, height * dpr);
@@ -265,9 +259,6 @@ export class TacticalScene {
 
     // 2. Render scene with bloom post-processing
     this.composer.render();
-
-    // 3. CSS2D labels
-    this.css2dRenderer.render(this.scene, this.camera);
   }
 
   /** Get the visible game-space half-extents (accounts for aspect ratio and zoom) */
@@ -352,7 +343,6 @@ export class TacticalScene {
     // Render with outfit composer (uses ortho camera)
     this.webglRenderer.clear(true, true, true);
     this.outfitComposer.render();
-    this.css2dRenderer.render(this.scene, this.outfitCamera);
   }
 
   /** Restore tactical mode after outfit */
@@ -374,6 +364,26 @@ export class TacticalScene {
   /** Clear the WebGL canvas (for non-tactical phases) */
   clear() {
     this.webglRenderer.clear(true, true, true);
+  }
+
+  /** Draw ship and planet labels onto a 2D canvas overlay */
+  renderLabels(ctx: CanvasRenderingContext2D, width: number, height: number, planets: import('../state').Planet[]) {
+    const lr = this.labelRenderer;
+    const cam = this.camera;
+
+    // Ship labels
+    for (const data of this.shipEffects.getLabelData()) {
+      const { x, y } = lr.project(data.worldPos, cam, width, height);
+      if (x < -50 || x > width + 50 || y < -50 || y > height + 50) continue;
+      lr.drawShipLabel(ctx, x, y, data.text, data.color, 11);
+    }
+
+    // Planet labels
+    for (const data of this.planets.getLabelData(planets)) {
+      const { x, y } = lr.project(data.worldPos, cam, width, height);
+      if (x < -50 || x > width + 50 || y < -50 || y > height + 50) continue;
+      lr.drawPlanetLabel(ctx, x, y, data.name, data.armies, data.flags, data.teamColor, 12);
+    }
   }
 
   // ============================================================

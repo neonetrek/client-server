@@ -20,6 +20,7 @@ import {
 } from './constants';
 import { TacticalScene } from './tactical/TacticalScene';
 import { GalacticScene } from './galactic/GalacticScene';
+import { AudioEngine } from './audio';
 
 // Status bar configuration
 interface BarRef {
@@ -32,6 +33,8 @@ export class Renderer {
   private galCanvas: HTMLCanvasElement;
   private overlayCanvas: HTMLCanvasElement;
   private overlayCtx: CanvasRenderingContext2D;
+  private galOverlayCanvas: HTMLCanvasElement;
+  private galOverlayCtx: CanvasRenderingContext2D;
   private galacticScene: GalacticScene;
   private state: GameState;
   private _tacWidth: number;
@@ -58,6 +61,9 @@ export class Renderer {
   private lagEl!: HTMLElement;
   private alertEl!: HTMLElement;
 
+  // Audio engine for engine hum
+  private audio: AudioEngine | null = null;
+
   // Player list dirty check
   private lastPlayerHash = '';
 
@@ -67,7 +73,6 @@ export class Renderer {
   constructor(
     tacCanvas: HTMLCanvasElement,
     galCanvas: HTMLCanvasElement,
-    galacticLabelsEl: HTMLElement,
     state: GameState,
     statusBar: HTMLElement,
     playerList: HTMLElement,
@@ -88,17 +93,22 @@ export class Renderer {
     this.overlayCanvas = document.getElementById('tactical-overlay') as HTMLCanvasElement;
     this.overlayCtx = this.overlayCanvas.getContext('2d')!;
 
-    // Label container for CSS2DRenderer
-    const labelContainer = document.getElementById('tactical-labels')!;
+    // Galactic overlay canvas (2D) sits on top of WebGL galactic canvas
+    this.galOverlayCanvas = document.getElementById('galactic-overlay') as HTMLCanvasElement;
+    this.galOverlayCtx = this.galOverlayCanvas.getContext('2d')!;
 
     // Create Three.js tactical scene (takes over #tactical canvas for WebGL)
-    this.tacticalScene = new TacticalScene(tacCanvas, labelContainer);
+    this.tacticalScene = new TacticalScene(tacCanvas);
 
     // Create Three.js galactic scene (separate WebGL context)
-    this.galacticScene = new GalacticScene(galCanvas, galacticLabelsEl);
+    this.galacticScene = new GalacticScene(galCanvas);
 
     this.initStatusBar();
     this.initPlayerListHeader();
+  }
+
+  setAudio(audio: AudioEngine) {
+    this.audio = audio;
   }
 
   get canvasSize(): number {
@@ -124,6 +134,14 @@ export class Renderer {
     this.galCanvas.style.width = `${galSize}px`;
     this.galCanvas.style.height = `${galSize}px`;
     this.galacticScene.resize(galSize, galSize);
+
+    // Galactic overlay canvas: 2D for labels (matches galactic)
+    this.galOverlayCanvas.width = galSize * dpr;
+    this.galOverlayCanvas.height = galSize * dpr;
+    this.galOverlayCanvas.style.width = `${galSize}px`;
+    this.galOverlayCanvas.style.height = `${galSize}px`;
+    this.galOverlayCtx = this.galOverlayCanvas.getContext('2d')!;
+    this.galOverlayCtx.scale(dpr, dpr);
 
     // Tactical canvas: WebGL (rectangular)
     this.tacCanvas.style.width = `${tacWidth}px`;
@@ -156,14 +174,16 @@ export class Renderer {
 
     // Show outfit screen during outfit/dead phases
     if (this.state.phase === 'outfit' || this.state.phase === 'dead') {
+      this.audio?.stopEngine();
       // 3D outfit showcase — all 6 ship classes
       this.tacticalScene.renderOutfit(this.state, this.state.myTeam);
 
       // Outfit UI on overlay canvas
       this.renderOutfit(oCtx, w, h, this.state.myTeam);
 
-      // Clear galactic during outfit
+      // Clear galactic during outfit (both 3D scene and 2D overlay labels)
       this.galacticScene.clear();
+      this.galOverlayCtx.clearRect(0, 0, this._galCanvasSize, this._galCanvasSize);
 
       this.updateStatusBar();
       if (this._showHelp) this.renderHelp(oCtx, w, h);
@@ -174,6 +194,7 @@ export class Renderer {
     // Login phase: show MOTD on overlay, black tactical
     if (this.state.phase === 'login' || !this.state.players[this.state.myNumber] ||
         this.state.players[this.state.myNumber]?.status === PFREE) {
+      this.audio?.stopEngine();
       if (this.isTacticalMode) {
         this.tacticalScene.restoreTacticalMode();
         this.isTacticalMode = false;
@@ -195,7 +216,20 @@ export class Renderer {
     }
 
     this.tacticalScene.render(this.state);
+    this.tacticalScene.renderLabels(oCtx, w, h, this.state.planets);
     this.renderGalactic();
+
+    // Drive engine hum from player speed
+    if (this.audio) {
+      const me = this.state.players[this.state.myNumber];
+      if (me && me.status === PALIVE) {
+        this.audio.startEngine();
+        const maxSpeed = SHIP_STATS[me.shipType]?.speed ?? 12;
+        this.audio.updateEngine(me.speed, maxSpeed);
+      } else {
+        this.audio.stopEngine();
+      }
+    }
 
     // Warning text on overlay
     const s = this.state;
@@ -502,7 +536,14 @@ export class Renderer {
   // ============================================================
 
   private renderGalactic() {
+    const galSize = this._galCanvasSize;
+    const gCtx = this.galOverlayCtx;
+
+    // Clear galactic overlay
+    gCtx.clearRect(0, 0, galSize, galSize);
+
     this.galacticScene.render(this.state, this.tacticalScene.getVisibleHalfExtents());
+    this.galacticScene.renderLabels(gCtx, galSize, galSize, this.state);
   }
 
   // ============================================================

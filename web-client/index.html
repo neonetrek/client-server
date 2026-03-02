@@ -53,28 +53,18 @@
       pointer-events: none;
       z-index: 5;
     }
-    /* CSS2D label container */
-    #tactical-labels {
-      position: absolute;
-      top: 0;
-      left: 0;
-      pointer-events: none;
-      z-index: 4;
-      overflow: hidden;
-    }
 
-    /* Galactic CSS2D label container */
+    /* Galactic wrap and overlay */
     #galactic-wrap {
       position: relative;
       overflow: hidden;
     }
-    #galactic-labels {
+    #galactic-overlay {
       position: absolute;
       top: 0;
       left: 0;
       pointer-events: none;
-      z-index: 4;
-      overflow: hidden;
+      z-index: 5;
     }
 
     #status-bar {
@@ -253,7 +243,6 @@
       <div id="tactical-wrap">
         <canvas id="tactical"></canvas>
         <canvas id="tactical-overlay"></canvas>
-        <div id="tactical-labels"></div>
         <div id="status">Connecting...</div>
         <form id="login-form" class="login-overlay" autocomplete="on" style="display: none;">
           <label for="login-name" class="login-label">Name:</label>
@@ -267,7 +256,7 @@
       </div>
       <div id="galactic-wrap" style="position: relative;">
         <canvas id="galactic"></canvas>
-        <div id="galactic-labels"></div>
+        <canvas id="galactic-overlay"></canvas>
       </div>
     </div>
     <div id="status-bar"></div>

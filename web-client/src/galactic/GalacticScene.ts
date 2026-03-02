@@ -7,7 +7,6 @@
  */
 
 import * as THREE from 'three';
-import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -20,6 +19,7 @@ import { GalacticStarfield } from './GalacticStarfield';
 import { GalacticPlanets } from './GalacticPlanets';
 import { GalacticPlayers } from './GalacticPlayers';
 import { GalacticViewport } from './GalacticViewport';
+import { LabelRenderer } from '../LabelRenderer';
 
 const PADDING = 2000;
 const CAMERA_Y = 5000;
@@ -28,8 +28,8 @@ export class GalacticScene {
   private scene: THREE.Scene;
   private camera: THREE.OrthographicCamera;
   private webglRenderer: THREE.WebGLRenderer;
-  private css2dRenderer: CSS2DRenderer;
   private composer: EffectComposer;
+  private labelRenderer: LabelRenderer;
 
   // Sub-modules
   private grid: GalacticGrid;
@@ -38,7 +38,7 @@ export class GalacticScene {
   private players: GalacticPlayers;
   private viewport: GalacticViewport;
 
-  constructor(canvas: HTMLCanvasElement, labelContainer: HTMLElement) {
+  constructor(canvas: HTMLCanvasElement) {
     // Scene
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x000000);
@@ -63,13 +63,8 @@ export class GalacticScene {
     this.webglRenderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.webglRenderer.toneMappingExposure = 1.0;
 
-    // CSS2D renderer for labels
-    this.css2dRenderer = new CSS2DRenderer({ element: labelContainer });
-    this.css2dRenderer.setSize(300, 300);
-    this.css2dRenderer.domElement.style.position = 'absolute';
-    this.css2dRenderer.domElement.style.top = '0';
-    this.css2dRenderer.domElement.style.left = '0';
-    this.css2dRenderer.domElement.style.pointerEvents = 'none';
+    // Canvas 2D label renderer (replaces CSS2DRenderer)
+    this.labelRenderer = new LabelRenderer();
 
     // Post-processing: lighter bloom than tactical
     this.composer = new EffectComposer(this.webglRenderer);
@@ -109,7 +104,6 @@ export class GalacticScene {
     const dpr = window.devicePixelRatio || 1;
     this.webglRenderer.setSize(width, height);
     this.webglRenderer.setPixelRatio(dpr);
-    this.css2dRenderer.setSize(width, height);
 
     // Maintain correct ortho frustum for the canvas aspect ratio.
     // Camera is at (GWIDTH/2, Y, GWIDTH/2), so ortho bounds are symmetric around origin.
@@ -147,7 +141,26 @@ export class GalacticScene {
 
     // Render
     this.composer.render();
-    this.css2dRenderer.render(this.scene, this.camera);
+  }
+
+  /** Draw planet and player labels onto a 2D canvas overlay */
+  renderLabels(ctx: CanvasRenderingContext2D, width: number, height: number, state: GameState) {
+    const lr = this.labelRenderer;
+    const cam = this.camera;
+
+    // Planet labels
+    for (const data of this.planets.getLabelData(state.planets)) {
+      const { x, y } = lr.project(data.worldPos, cam, width, height);
+      if (x < -50 || x > width + 50 || y < -50 || y > height + 50) continue;
+      lr.drawPlanetLabel(ctx, x, y, data.name, data.armies, data.flags, data.teamColor, 9);
+    }
+
+    // Player labels
+    for (const data of this.players.getLabelData()) {
+      const { x, y } = lr.project(data.worldPos, cam, width, height);
+      if (x < -50 || x > width + 50 || y < -50 || y > height + 50) continue;
+      lr.drawShipLabel(ctx, x, y, data.text, data.color, 8);
+    }
   }
 
   clear() {

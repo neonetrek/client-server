@@ -5,9 +5,9 @@
  */
 
 import * as THREE from 'three';
-import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Planet } from '../state';
 import { TEAM_COLORS, PLREPAIR, PLFUEL, PLAGRI, PLHOME, IND, MAXPLANETS } from '../constants';
+import { PlanetLabelData } from '../LabelRenderer';
 import { PlanetTextureManager } from './PlanetTextures';
 
 const PLANET_RADIUS = 600;
@@ -20,13 +20,6 @@ const WHITE = new THREE.Color(0xffffff);
 function hexToRgb(hex: string): THREE.Color {
   return new THREE.Color(hex);
 }
-
-// Inline SVG icons for planet resources (14x14, monochrome via currentColor)
-const SVG_REPAIR = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" style="vertical-align:-3px"><line x1="7" y1="1" x2="7" y2="3" stroke-width="1.2"/><circle cx="7" cy="1" r="0.8" fill="currentColor" stroke="none"/><rect x="3" y="3" width="8" height="6.5" rx="1" stroke-width="1"/><rect x="5" y="5" width="1.3" height="1.3" rx="0.3" fill="currentColor" stroke="none"/><rect x="7.7" y="5" width="1.3" height="1.3" rx="0.3" fill="currentColor" stroke="none"/><line x1="5" y1="8" x2="9" y2="8" stroke-width="0.8"/><line x1="4.5" y1="10.5" x2="3" y2="13" stroke-width="1"/><line x1="9.5" y1="10.5" x2="11" y2="13" stroke-width="1"/></svg>`;
-
-const SVG_FUEL = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" style="vertical-align:-3px"><path d="M7 1L11.5 7L7 13L2.5 7Z" stroke-width="1"/><line x1="2.5" y1="7" x2="11.5" y2="7" stroke-width="0.7"/><line x1="4.8" y1="4" x2="9.2" y2="4" stroke-width="0.7"/><line x1="4.8" y1="10" x2="9.2" y2="10" stroke-width="0.7"/></svg>`;
-
-const SVG_AGRI = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" style="vertical-align:-3px"><line x1="7" y1="4" x2="7" y2="13" stroke-width="1"/><path d="M7 4Q4 3 4 1Q6 2 7 4" fill="currentColor" stroke="none"/><path d="M7 4Q10 3 10 1Q8 2 7 4" fill="currentColor" stroke="none"/><path d="M7 7Q4 6 3.5 4Q5.5 5 7 7" fill="currentColor" stroke="none"/><path d="M7 7Q10 6 10.5 4Q8.5 5 7 7" fill="currentColor" stroke="none"/><path d="M7 10Q4.5 9 4 7Q5.5 8.5 7 10" fill="currentColor" stroke="none"/><path d="M7 10Q9.5 9 10 7Q8.5 8.5 7 10" fill="currentColor" stroke="none"/></svg>`;
 
 /** Build shared lat/lon grid geometry (unit sphere, scaled by PLANET_RADIUS) */
 function buildGridGeometry(): THREE.BufferGeometry {
@@ -74,8 +67,6 @@ interface PlanetVisual {
   sphere: THREE.Mesh;
   gridLines: THREE.LineLoop;
   homeRing: THREE.Mesh;
-  label: CSS2DObject;
-  labelDiv: HTMLDivElement;
 }
 
 export class PlanetMeshes {
@@ -147,16 +138,8 @@ export class PlanetMeshes {
       homeRing.visible = false;
       g.add(homeRing);
 
-      // CSS2D label (outer group — doesn't rotate)
-      // Z-offset moves label south on screen, clear of the sphere
-      const labelDiv = document.createElement('div');
-      labelDiv.style.cssText = 'font: 12px monospace; color: #888; text-align: center; pointer-events: none; text-shadow: 0 0 3px #000;';
-      const label = new CSS2DObject(labelDiv);
-      label.position.set(0, -10, PLANET_RADIUS + 500);
-      g.add(label);
-
       this.group.add(g);
-      this.visuals.push({ group: g, innerGroup, sphere, gridLines, homeRing, label, labelDiv });
+      this.visuals.push({ group: g, innerGroup, sphere, gridLines, homeRing });
     }
   }
 
@@ -211,23 +194,32 @@ export class PlanetMeshes {
 
       // Home planet ring
       vis.homeRing.visible = !!(planet.flags & PLHOME);
-
-      // Label: Name + armies on line 1, resource icons on line 2
-      const hexColor = TEAM_COLORS[planet.owner] ?? '#888888';
-      let html = `<span style="color:${hexColor}">${planet.name}</span>`;
-      if (planet.armies > 0) {
-        html += ` <span style="color:#aaa">⚑${planet.armies}</span>`;
-      }
-      if (planet.flags & (PLREPAIR | PLFUEL | PLAGRI)) {
-        const icons: string[] = [];
-        if (planet.flags & PLREPAIR) icons.push(SVG_REPAIR);
-        if (planet.flags & PLFUEL) icons.push(SVG_FUEL);
-        if (planet.flags & PLAGRI) icons.push(SVG_AGRI);
-        const sep = '<span style="color:#555;margin:0 1px">│</span>';
-        html += `<br><span style="color:#aaa;border:1px solid #555;border-radius:3px;padding:1px 3px;background:rgba(0,0,0,0.5);display:inline-flex;align-items:center">${icons.join(sep)}</span>`;
-      }
-      vis.labelDiv.innerHTML = html;
-      vis.labelDiv.style.whiteSpace = 'nowrap';
     }
+  }
+
+  /** Return label data for all visible planets (for canvas overlay rendering) */
+  getLabelData(planets: Planet[]): PlanetLabelData[] {
+    const result: PlanetLabelData[] = [];
+    for (let i = 0; i < MAXPLANETS; i++) {
+      const vis = this.visuals[i];
+      if (!vis.group.visible) continue;
+      const planet = planets[i];
+      if (!planet || !planet.name) continue;
+      const teamColor = TEAM_COLORS[planet.owner] ?? '#888888';
+      // Label position: planet group position + Z offset (below the sphere)
+      const pos = new THREE.Vector3(
+        vis.group.position.x,
+        vis.group.position.y - 10,
+        vis.group.position.z + PLANET_RADIUS + 500,
+      );
+      result.push({
+        worldPos: pos,
+        name: planet.name,
+        armies: planet.armies,
+        flags: planet.flags,
+        teamColor,
+      });
+    }
+    return result;
   }
 }

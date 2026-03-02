@@ -4,8 +4,8 @@
  */
 
 import * as THREE from 'three';
-import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Player } from '../state';
+import { ShipLabelData } from '../LabelRenderer';
 import {
   PFSHIELD, PFCLOAK, PFTRACT, PFPRESS,
   SHIP_STATS, TEAM_COLORS, TEAM_LETTERS, SHIP_SHORT, IND,
@@ -302,8 +302,6 @@ interface ShipVisualState {
   expVelocity: Float32Array;
   expDelay: Float32Array;   // per-particle start delay (0..0.4 of duration)
   expSize: Float32Array;    // per-particle max pixel size
-  label: CSS2DObject;
-  labelDiv: HTMLDivElement;
   // State tracking
   bankAngle: number;
   shieldHitTime: number;
@@ -439,13 +437,6 @@ export class ShipEffects {
       explosion.visible = false;
       g.add(explosion);
 
-      // CSS2D Label
-      const labelDiv = document.createElement('div');
-      labelDiv.style.cssText = 'font: 11px monospace; text-align: center; pointer-events: none; text-shadow: 0 0 4px #000, 0 0 2px #000; white-space: pre-line; line-height: 1.3;';
-      const label = new CSS2DObject(labelDiv);
-      label.position.set(0, 0, 700); // below ship in Three.js space (positive Z = south in game)
-      g.add(label);
-
       this.group.add(g);
       this.states.push({
         group: g,
@@ -464,8 +455,6 @@ export class ShipEffects {
         expVelocity,
         expDelay,
         expSize,
-        label,
-        labelDiv,
         bankAngle: 0,
         shieldHitTime: 0,
         lastShield: 0,
@@ -671,7 +660,7 @@ export class ShipEffects {
         state.explosion.visible = false;
       }
 
-      // Label — only update DOM when text/color actually changes
+      // Label text computation — stored for getLabelData()
       const isMe = player.number === myNumber;
       const tc = TEAM_COLORS[player.team] ?? TEAM_COLORS[IND];
       const labelColor = isMe ? '#ffffff' : tc;
@@ -681,19 +670,29 @@ export class ShipEffects {
       if (player.kills >= 1) labelText += `\n${'★'.repeat(Math.min(5, Math.floor(player.kills)))}`;
       if (player.armies > 0) labelText += `\n♦${player.armies}`;
 
-      if (labelText !== state.lastLabelText) {
-        state.labelDiv.textContent = labelText;
-        state.lastLabelText = labelText;
-      }
-      if (labelColor !== state.lastLabelColor) {
-        state.labelDiv.style.color = labelColor;
-        state.lastLabelColor = labelColor;
-      }
+      state.lastLabelText = labelText;
+      state.lastLabelColor = labelColor;
 
       // Update tracking
       state.lastShield = player.shield;
       state.lastHull = player.hull;
       state.prevDir = player.dir;
     }
+  }
+
+  /** Return label data for all visible ships (for canvas overlay rendering) */
+  getLabelData(): ShipLabelData[] {
+    const result: ShipLabelData[] = [];
+    for (const state of this.states) {
+      if (!state.group.visible || !state.lastLabelText) continue;
+      // Label position: ship group position + Z offset (700 units south)
+      const pos = new THREE.Vector3(
+        state.group.position.x,
+        state.group.position.y,
+        state.group.position.z + 700,
+      );
+      result.push({ worldPos: pos, text: state.lastLabelText, color: state.lastLabelColor });
+    }
+    return result;
   }
 }
