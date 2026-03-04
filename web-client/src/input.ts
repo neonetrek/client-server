@@ -95,7 +95,11 @@ export class InputHandler {
    *  Client ticks at 20 FPS (REDRAW_RATE=50ms), so we accumulate half per tick. */
   tickHeldKeys() {
     if (this.chatMode) return;
-    if (this.state.phase !== 'alive') return;
+    if (this.state.phase !== 'alive') {
+      // Clean up beam retry if we left alive phase (death, disconnect, etc.)
+      if (this.beamRetryInterval) this.cancelBeamAttempt();
+      return;
+    }
 
     const me = this.state.players[this.state.myNumber];
     if (!me) return;
@@ -381,9 +385,10 @@ export class InputHandler {
           // Attempt in progress — cancel
           this.net.sendTractor(false, 0);
           this.cancelBeamAttempt();
-        } else if (me.flags & PFTRACT) {
+        } else if (me.flags & (PFTRACT | PFPRESS)) {
           // Currently locked (tractor or pressor) — break
-          this.net.sendTractor(false, 0);
+          if (me.flags & PFTRACT) this.net.sendTractor(false, 0);
+          if (me.flags & PFPRESS) this.net.sendRepress(false, 0);
         } else {
           // Start new tractor attempt
           const target = this.findNearestTarget();
@@ -398,9 +403,10 @@ export class InputHandler {
           // Attempt in progress — cancel
           this.net.sendRepress(false, 0);
           this.cancelBeamAttempt();
-        } else if (me.flags & PFPRESS) {
-          // Currently pressing — break
-          this.net.sendRepress(false, 0);
+        } else if (me.flags & (PFTRACT | PFPRESS)) {
+          // Currently locked (tractor or pressor) — break
+          if (me.flags & PFTRACT) this.net.sendTractor(false, 0);
+          if (me.flags & PFPRESS) this.net.sendRepress(false, 0);
         } else {
           // Start new pressor attempt
           const target = this.findNearestTarget();
@@ -583,7 +589,7 @@ export class InputHandler {
   }
 
   /**
-   * Find the nearest alive, non-cloaked enemy player.
+   * Find the nearest alive, non-cloaked player within range.
    * Mouse users: nearest to cursor. Keyboard-only: nearest in ship direction.
    * Returns player number or -1 if none found.
    */

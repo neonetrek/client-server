@@ -312,6 +312,7 @@ describe('InputHandler', () => {
     beforeEach(() => {
       state.phase = 'alive';
       state.myNumber = 0;
+      state.players[0].status = 2; // PALIVE
       state.players[0].flags = 0;
       state.players[0].team = FED;
     });
@@ -416,6 +417,12 @@ describe('InputHandler', () => {
       expect(net.sendTractor).toHaveBeenCalledWith(false, 0);
     });
 
+    it('q breaks pressor if pressor is active', () => {
+      state.players[0].flags = PFPRESS;
+      keyDown('q');
+      expect(net.sendRepress).toHaveBeenCalledWith(false, 0);
+    });
+
     it('r activates repressor on nearest target', () => {
       state.players[0].flags = 0;
       state.players[0].x = 5000;
@@ -433,6 +440,74 @@ describe('InputHandler', () => {
       state.players[0].flags = PFPRESS;
       keyDown('r');
       expect(net.sendRepress).toHaveBeenCalledWith(false, 0);
+    });
+
+    it('r breaks tractor if tractor is active', () => {
+      state.players[0].flags = PFTRACT;
+      keyDown('r');
+      expect(net.sendTractor).toHaveBeenCalledWith(false, 0);
+    });
+
+    it('second q cancels beam attempt in progress', () => {
+      state.players[0].flags = 0;
+      state.players[0].x = 5000;
+      state.players[0].y = 5000;
+      state.players[1].status = PALIVE;
+      state.players[1].x = 5500;
+      state.players[1].y = 5000;
+      state.players[1].number = 1;
+      keyDown('q'); // start attempt
+      net.sendTractor.mockClear();
+      keyDown('q'); // cancel attempt
+      expect(net.sendTractor).toHaveBeenCalledWith(false, 0);
+      expect(state.beamAttempt).toBeNull();
+    });
+
+    it('beam attempt retries on interval and stops after 5s', () => {
+      vi.useFakeTimers({ now: 1000 });
+      state.players[0].flags = 0;
+      state.players[0].x = 5000;
+      state.players[0].y = 5000;
+      state.players[1].status = PALIVE;
+      state.players[1].x = 5500;
+      state.players[1].y = 5000;
+      state.players[1].number = 1;
+      keyDown('q'); // start attempt
+      expect(net.sendTractor).toHaveBeenCalledTimes(1);
+
+      // Retry at 1s
+      vi.advanceTimersByTime(1000);
+      expect(net.sendTractor).toHaveBeenCalledTimes(2);
+
+      // Retry at 2s
+      vi.advanceTimersByTime(1000);
+      expect(net.sendTractor).toHaveBeenCalledTimes(3);
+
+      // After 5s total, should stop retrying
+      vi.advanceTimersByTime(3000);
+      const countAt5s = net.sendTractor.mock.calls.length;
+      vi.advanceTimersByTime(2000);
+      expect(net.sendTractor).toHaveBeenCalledTimes(countAt5s);
+      expect(state.beamAttempt).toBeNull();
+
+      vi.useRealTimers();
+    });
+
+    it('beam attempt clears when phase changes to non-alive', () => {
+      state.players[0].flags = 0;
+      state.players[0].x = 5000;
+      state.players[0].y = 5000;
+      state.players[1].status = PALIVE;
+      state.players[1].x = 5500;
+      state.players[1].y = 5000;
+      state.players[1].number = 1;
+      keyDown('q'); // start attempt
+      expect(state.beamAttempt).not.toBeNull();
+
+      // Simulate phase change (death)
+      state.phase = 'dead';
+      handler.tickHeldKeys();
+      expect(state.beamAttempt).toBeNull();
     });
 
     it('W declares war on all enemies', () => {
