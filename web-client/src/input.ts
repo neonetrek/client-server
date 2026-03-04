@@ -313,30 +313,47 @@ export class InputHandler {
     }
 
     switch (key) {
+      // === WEAPONS (top row: W E T) ===
+
+      // Torpedo (keyboard alternative to right-click)
+      case 'w':
+        this.net.sendTorp(me.dir);
+        break;
+
+      // Phaser (keyboard alternative to middle-click)
+      case 'e':
+        this.net.sendPhaser(me.dir);
+        break;
+
+      // Plasma torpedo
+      case 't':
+      case 'T':
+        this.net.sendPlasma(me.dir);
+        break;
+
+      // === DEFENSE (home row: S D F G) ===
+
       // Shields toggle
       case 's':
         this.net.sendShield(!(me.flags & PFSHIELD));
         break;
 
+      // Det enemy torps
+      case 'd':
+        this.net.sendDetTorps();
+        break;
+
       // Cloak toggle
-      case 'c':
+      case 'f':
         this.net.sendCloak(!(me.flags & PFCLOAK));
         break;
 
       // Repair toggle
-      case 'R':
+      case 'g':
         this.net.sendRepair(!(me.flags & PFREPAIR));
         break;
 
-      // Orbit toggle
-      case 'o':
-        this.net.sendOrbit(!(me.flags & PFORBIT));
-        break;
-
-      // Bomb toggle
-      case 'b':
-        this.net.sendBomb(!(me.flags & PFBOMB));
-        break;
+      // === PLANET OPS (bottom row: Z X C B) ===
 
       // Beam up
       case 'z':
@@ -348,30 +365,18 @@ export class InputHandler {
         this.net.sendBeam(false);
         break;
 
-      // Det enemy torps
-      case 'd':
-        this.net.sendDetTorps();
+      // Orbit toggle
+      case 'c':
+        this.net.sendOrbit(!(me.flags & PFORBIT));
         break;
 
-      // Phaser (keyboard alternative to middle-click)
-      case 'p':
-        this.net.sendPhaser(me.dir);
-        break;
-
-      // Torpedo (keyboard alternative to right-click)
-      case 't':
-        this.net.sendTorp(me.dir);
-        break;
-
-      // Plasma torpedo
-      case 'f':
-      case 'F':
-        // Fire plasma in current direction (last mouse direction)
-        this.net.sendPlasma(me.dir);
+      // Bomb toggle
+      case 'b':
+        this.net.sendBomb(!(me.flags & PFBOMB));
         break;
 
       // Tractor beam
-      case 'r': {
+      case 'q': {
         if (this.state.beamAttempt) {
           // Attempt in progress — cancel
           this.net.sendTractor(false, 0);
@@ -388,7 +393,7 @@ export class InputHandler {
       }
 
       // Pressor beam
-      case 'y': {
+      case 'r': {
         if (this.state.beamAttempt) {
           // Attempt in progress — cancel
           this.net.sendRepress(false, 0);
@@ -404,8 +409,9 @@ export class InputHandler {
         break;
       }
 
-      // War declaration: cycle through enemy teams
+      // War declaration: Shift+W (not CapsLock+W)
       case 'W': {
+        if (!e.shiftKey) { this.net.sendTorp(me.dir); break; }
         const enemies = (FED | ROM | KLI | ORI) & ~me.team;
         this.net.sendWar(enemies);
         this.state.warningText = 'Declared war on all enemies';
