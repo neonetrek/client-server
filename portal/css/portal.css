@@ -401,6 +401,17 @@ body {
   font-family: var(--font-mono);
 }
 
+kbd {
+  display: inline-block;
+  padding: 0.1em 0.45em;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--accent-gold);
+  background: rgba(255, 204, 0, 0.08);
+  border: 1px solid rgba(255, 204, 0, 0.25);
+  border-radius: 3px;
+}
+
 /* ---------- Leaderboard ---------- */
 .lb-instance-tabs {
   display: flex;

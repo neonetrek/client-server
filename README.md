@@ -70,13 +70,17 @@ For local dev, you'll need a Netrek server running on localhost:2592. The Vite d
 - **Middle click**: Fire phaser
 
 **Keyboard (left-hand layout, grouped by function):**
-- `0-9`: Set speed (0=stop, 9=fast)
+- `0-9`: Set speed (0=stop, 9=fast), `!/@/#`: Speed 10/11/12
+- `Arrow keys`: Turn left/right (hold), speed up/down
 - `w`: Fire torpedo, `e`: Fire phaser, `t`: Fire plasma
-- `q`: Tractor beam, `r`: Repressor
+- `q`: Tractor beam (locks nearest), `r`: Repressor (locks nearest)
 - `s`: Toggle shields, `f`: Toggle cloak, `g`: Repair
 - `d`: Detonate enemy torpedoes
 - `c`: Orbit planet, `b`: Bomb planet
 - `z`: Beam up armies, `x`: Beam down armies
+- `W`: Declare war on all enemies, `M`: Toggle sound
+- `;`: Chat to all, `Enter`: Chat to team
+- `?`: Help screen
 - `Shift+Q` twice: Quit (first press warns, second confirms)
 
 ### Game Flow

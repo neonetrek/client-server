@@ -949,7 +949,7 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col1x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col1x + 90, y);
+      ctx.fillText(desc, col1x + 120, y);
       y += lineH;
     }
 
@@ -970,7 +970,7 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col1x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col1x + 90, y);
+      ctx.fillText(desc, col1x + 120, y);
       y += lineH;
     }
 
@@ -990,7 +990,7 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col1x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col1x + 90, y);
+      ctx.fillText(desc, col1x + 120, y);
       y += lineH;
     }
 
@@ -1002,14 +1002,14 @@ export class Renderer {
     ctx.font = '11px monospace';
 
     const tractorKeys = [
-      ['q', 'Tractor beam toggle'],
-      ['r', 'Repressor toggle'],
+      ['q', 'Tractor beam (lock nearest)'],
+      ['r', 'Repressor (lock nearest)'],
     ];
     for (const [key, desc] of tractorKeys) {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col1x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col1x + 90, y);
+      ctx.fillText(desc, col1x + 120, y);
       y += lineH;
     }
 
@@ -1031,7 +1031,7 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col2x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col2x + 70, y);
+      ctx.fillText(desc, col2x + 100, y);
       y += lineH;
     }
 
@@ -1051,7 +1051,7 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col2x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col2x + 70, y);
+      ctx.fillText(desc, col2x + 100, y);
       y += lineH;
     }
 
@@ -1082,14 +1082,14 @@ export class Renderer {
     const viewKeys = [
       ['W', 'Declare war (all)'],
       ['M', 'Toggle sound'],
-      ['Shift+Q', 'Quit game (disconnect)'],
+      ['Shift+Q x2', 'Quit game (disconnect)'],
       ['?', 'This help screen'],
     ];
     for (const [key, desc] of viewKeys) {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col2x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col2x + 70, y);
+      ctx.fillText(desc, col2x + 100, y);
       y += lineH;
     }
 
@@ -1108,7 +1108,7 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col2x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col2x + 70, y);
+      ctx.fillText(desc, col2x + 100, y);
       y += lineH;
     }
 
