@@ -409,8 +409,9 @@ export class InputHandler {
         break;
       }
 
-      // War declaration: cycle through enemy teams
+      // War declaration: Shift+W (not CapsLock+W)
       case 'W': {
+        if (!e.shiftKey) { this.net.sendTorp(me.dir); break; }
         const enemies = (FED | ROM | KLI | ORI) & ~me.team;
         this.net.sendWar(enemies);
         this.state.warningText = 'Declared war on all enemies';

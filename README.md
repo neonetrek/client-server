@@ -77,7 +77,7 @@ For local dev, you'll need a Netrek server running on localhost:2592. The Vite d
 - `d`: Detonate enemy torpedoes
 - `c`: Orbit planet, `b`: Bomb planet
 - `z`: Beam up armies, `x`: Beam down armies
-- `Shift+Q`: Quit
+- `Shift+Q` twice: Quit (first press warns, second confirms)
 
 ### Game Flow
 

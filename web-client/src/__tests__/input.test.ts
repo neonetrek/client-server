@@ -401,7 +401,7 @@ describe('InputHandler', () => {
       state.players[0].flags = 0;
       state.players[0].x = 5000;
       state.players[0].y = 5000;
-      // Place a nearby alive enemy as target
+      // Place a nearby alive player as target
       state.players[1].status = PALIVE;
       state.players[1].x = 5500;
       state.players[1].y = 5000;
@@ -420,7 +420,7 @@ describe('InputHandler', () => {
       state.players[0].flags = 0;
       state.players[0].x = 5000;
       state.players[0].y = 5000;
-      // Place a nearby alive enemy as target
+      // Place a nearby alive player as target
       state.players[1].status = PALIVE;
       state.players[1].x = 5500;
       state.players[1].y = 5000;
@@ -437,7 +437,7 @@ describe('InputHandler', () => {
 
     it('W declares war on all enemies', () => {
       state.players[0].team = FED;
-      keyDown('W');
+      keyDown('W', { shiftKey: true });
       expect(net.sendWar).toHaveBeenCalledWith(ROM | KLI | ORI);
     });
 
