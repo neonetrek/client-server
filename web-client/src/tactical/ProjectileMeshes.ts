@@ -9,6 +9,7 @@ import {
   PHMISS, PHHIT, PHHIT2,
   PFTRACT, PFPRESS, PALIVE,
   TEAM_COLORS, IND, MAXTORP, MAXPLAYER,
+  TRACTDIST, SHIP_STATS,
 } from '../constants';
 
 const TWO_PI = Math.PI * 2;
@@ -37,6 +38,13 @@ interface BeamRefs {
   group: THREE.Group;
   outer: THREE.Mesh;
   mid: THREE.Mesh;
+  core: THREE.Mesh;
+}
+
+interface TractorBeamRefs {
+  group: THREE.Group;
+  glow: THREE.Mesh;
+  beam: THREE.Mesh;
   core: THREE.Mesh;
 }
 
@@ -128,6 +136,62 @@ function createBeamGroup(radii: [number, number, number], opacities: [number, nu
 }
 
 // ============================================================
+// Tractor beam visuals (gradient-textured planes for soft glow)
+// ============================================================
+
+let _beamTex: THREE.CanvasTexture | null = null;
+function beamGradientTexture(): THREE.CanvasTexture {
+  if (_beamTex) return _beamTex;
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 1;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createLinearGradient(0, 0, 128, 0);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(0.15, 'rgba(255,255,255,0)');
+  g.addColorStop(0.3, 'rgba(255,255,255,0.08)');
+  g.addColorStop(0.42, 'rgba(255,255,255,0.4)');
+  g.addColorStop(0.5, 'rgba(255,255,255,1)');
+  g.addColorStop(0.58, 'rgba(255,255,255,0.4)');
+  g.addColorStop(0.7, 'rgba(255,255,255,0.08)');
+  g.addColorStop(0.85, 'rgba(255,255,255,0)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 1);
+  _beamTex = new THREE.CanvasTexture(c);
+  return _beamTex;
+}
+
+function createTractorBeamGroup(): TractorBeamRefs {
+  const g = new THREE.Group();
+  const tex = beamGradientTexture();
+
+  const makePlane = (width: number, opacity: number, color: number, useTexture: boolean): THREE.Mesh => {
+    const geo = new THREE.PlaneGeometry(width, 1);
+    const mat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      ...(useTexture ? { map: tex } : {}),
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2; // lay flat in XZ plane
+    g.add(mesh);
+    return mesh;
+  };
+
+  // Wide soft glow, medium beam body, narrow bright core
+  const glow = makePlane(1200, 0.12, 0x4488ff, true);
+  const beam = makePlane(400, 0.35, 0x4488ff, true);
+  const core = makePlane(60, 0.9, 0xaaccff, false);
+
+  return { group: g, glow, beam, core };
+}
+
+// ============================================================
 // Main projectile manager
 // ============================================================
 
@@ -145,8 +209,8 @@ export class ProjectileMeshes {
   // Phaser beams (cached refs)
   private phaserRefs: BeamRefs[] = [];
 
-  // Tractor beams (cached refs)
-  private tractorRefs: BeamRefs[] = [];
+  // Tractor beams (gradient planes)
+  private tractorRefs: TractorBeamRefs[] = [];
 
   // Base opacities for phaser layers
   private static readonly PHASER_OPACITIES: [number, number, number] = [0.1, 0.35, 0.8];
@@ -200,9 +264,9 @@ export class ProjectileMeshes {
       this.group.add(refs.group);
     }
 
-    // Pre-allocate tractor beams (one per player)
+    // Pre-allocate tractor beams (gradient planes, one per player)
     for (let i = 0; i < MAXPLAYER; i++) {
-      const refs = createBeamGroup([25, 12, 5], [0.08, 0.25, 0.6], 0x00ff00);
+      const refs = createTractorBeamGroup();
       refs.group.visible = false;
       this.tractorRefs.push(refs);
       this.group.add(refs.group);
@@ -383,8 +447,10 @@ export class ProjectileMeshes {
       (refs.core.material as THREE.MeshBasicMaterial).opacity = ProjectileMeshes.PHASER_OPACITIES[2] * alpha;
     }
 
-    // --- Tractor / Pressor beams ---
+    // --- Tractor / Pressor beams (TNG style) ---
     let tractorIdx = 0;
+    const confirmedBeamPlayers = new Set<number>();
+
     for (const player of state.players) {
       if (player.status !== PALIVE) continue;
       if (!(player.flags & (PFTRACT | PFPRESS))) continue;
@@ -393,6 +459,7 @@ export class ProjectileMeshes {
       const tp = state.players[target];
       if (tp.status !== PALIVE) continue;
 
+      confirmedBeamPlayers.add(player.number);
       if (tractorIdx >= this.tractorRefs.length) break;
       const refs = this.tractorRefs[tractorIdx++];
       refs.group.visible = true;
@@ -401,26 +468,86 @@ export class ProjectileMeshes {
       const sz = player.y;
       const tx = tp.x;
       const tz = tp.y;
-
-      const midX = (sx + tx) / 2;
-      const midZ = (sz + tz) / 2;
       const dx = tx - sx;
       const dz = tz - sz;
       const length = Math.sqrt(dx * dx + dz * dz);
       const angle = Math.atan2(dx, dz);
 
-      refs.group.position.set(midX, 20, midZ);
+      refs.group.position.set((sx + tx) / 2, 20, (sz + tz) / 2);
       refs.group.rotation.set(0, angle, 0);
 
       const isPressor = !!(player.flags & PFPRESS);
-      const beamColor = isPressor ? 0xff0000 : 0x00ff00;
+      const beamColor = isPressor ? 0xff3333 : 0x4488ff;
+      const coreColor = isPressor ? 0xffaaaa : 0xaaccff;
 
-      // Update all 3 layers via cached refs (no traverse)
-      for (const mesh of [refs.outer, refs.mid, refs.core]) {
-        mesh.scale.set(1, length, 1);
-        mesh.rotation.x = Math.PI / 2;
-        mesh.position.set(0, 0, 0);
-        (mesh.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
+      // TNG shimmer: gentle sinusoidal pulsing
+      const shimmer = Math.sin(now * 0.006 + player.number * 1.7) * 0.15 + 0.85;
+
+      // Scale planes: x = width (set at creation), y = length along beam
+      refs.glow.scale.set(1, length, 1);
+      refs.beam.scale.set(1, length, 1);
+      refs.core.scale.set(1, length, 1);
+
+      (refs.glow.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
+      (refs.beam.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
+      (refs.core.material as THREE.MeshBasicMaterial).color.setHex(coreColor);
+
+      (refs.glow.material as THREE.MeshBasicMaterial).opacity = 0.12 * shimmer;
+      (refs.beam.material as THREE.MeshBasicMaterial).opacity = 0.35 * shimmer;
+      (refs.core.material as THREE.MeshBasicMaterial).opacity = 0.9 * shimmer;
+    }
+
+    // --- BeamAttempt: flickering beam while trying to lock on ---
+    const attempt = state.beamAttempt;
+    if (attempt && !confirmedBeamPlayers.has(attempt.playerNum)) {
+      const elapsed = now - attempt.time;
+      if (elapsed < 5000 && tractorIdx < this.tractorRefs.length) {
+        const src = state.players[attempt.playerNum];
+        const tgt = attempt.targetNum >= 0 && attempt.targetNum < MAXPLAYER
+          ? state.players[attempt.targetNum] : null;
+
+        if (src && tgt && src.status === PALIVE && tgt.status === PALIVE) {
+          const refs = this.tractorRefs[tractorIdx++];
+          refs.group.visible = true;
+
+          const sx = src.x;
+          const sz = src.y;
+          const tx = tgt.x;
+          const tz = tgt.y;
+          const dx = tx - sx;
+          const dz = tz - sz;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+
+          // Clamp to ship's max tractor range
+          const stats = SHIP_STATS[src.shipType];
+          const maxRange = TRACTDIST * (stats?.tractRng ?? 1.0);
+          const length = Math.min(dist, maxRange);
+          const ratio = dist > 0 ? length / dist : 0;
+
+          const angle = Math.atan2(dx, dz);
+          refs.group.position.set(sx + dx * ratio * 0.5, 20, sz + dz * ratio * 0.5);
+          refs.group.rotation.set(0, angle, 0);
+
+          const beamColor = attempt.isPressor ? 0xff3333 : 0x4488ff;
+          const coreColor = attempt.isPressor ? 0xffaaaa : 0xaaccff;
+
+          // Erratic flicker: multiple sine waves at incommensurate frequencies
+          const f = Math.sin(now * 0.03) * Math.sin(now * 0.047) * Math.sin(now * 0.013);
+          const fade = 1 - elapsed / 5000;
+          const flickerAlpha = Math.max(0, f * 0.5 + 0.5) * fade;
+
+          refs.glow.scale.set(1, length, 1);
+          refs.beam.scale.set(1, length, 1);
+          refs.core.scale.set(1, length, 1);
+
+          (refs.glow.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
+          (refs.beam.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
+          (refs.core.material as THREE.MeshBasicMaterial).color.setHex(coreColor);
+
+          (refs.glow.material as THREE.MeshBasicMaterial).opacity = 0.12 * flickerAlpha;
+          (refs.beam.material as THREE.MeshBasicMaterial).opacity = 0.35 * flickerAlpha;
+          (refs.core.material as THREE.MeshBasicMaterial).opacity = 0.9 * flickerAlpha;
+        }
       }
     }
 

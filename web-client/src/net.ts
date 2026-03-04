@@ -292,7 +292,8 @@ export class NetrekConnection {
         me.hostile = f[2] as number;
         me.war = f[3] as number;
         me.armies = f[4] as number;
-        // f[5] = tractor (bit 0x40 = active)
+        // f[5] = tractor byte: lower 6 bits = target player, bit 0x40 = beam active
+        me.tractTarget = (f[5] as number) & 0x3f;
         me.flags = f[6] as number;
         const newDamage = f[7] as number;
         if (newDamage > me.hull && me.status === 2) { // damage increased = ship took a hit
@@ -373,7 +374,7 @@ export class NetrekConnection {
         const f = unpack(SP.FLAGS.format, view);
         const pnum = f[1] as number;
         if (!this.validPlayer(pnum)) break;
-        s.players[pnum].tractTarget = f[2] as number;
+        s.players[pnum].tractTarget = (f[2] as number) & 0x3f;
         s.players[pnum].flags = f[3] as number;
         break;
       }

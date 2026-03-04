@@ -76,6 +76,14 @@ export interface Planet {
   armies: number;
 }
 
+/** Client-side beam attempt for visual feedback when server rejects (out of range). */
+export interface BeamAttempt {
+  playerNum: number;    // who is wielding
+  targetNum: number;    // targeted player
+  isPressor: boolean;   // false = tractor, true = pressor
+  time: number;         // Date.now() when attempt was made
+}
+
 export interface Message {
   from: number;
   to: number;
@@ -120,6 +128,9 @@ export interface GameState {
   desiredDir: number; // -1 = no pending turn, 0-255 = target direction
   // Client-side desired speed (set by input handler for arrow-key speed control)
   desiredSpeed: number; // -1 = no pending change
+
+  // Client-side beam attempt for visual feedback
+  beamAttempt: BeamAttempt | null;
 
   // Ping / latency
   lastPingTime: number;
@@ -194,6 +205,7 @@ export function createGameState(): GameState {
     warningText: '',
     warningTime: 0,
     desiredDir: -1,
+    beamAttempt: null,
     desiredSpeed: -1,
     queuePos: -1,
     lastPingTime: 0,

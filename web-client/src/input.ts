@@ -14,7 +14,7 @@ import {
   FED, ROM, KLI, ORI,
   SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, STARBASE, SGALAXY,
   MALL, MTEAM, MINDIV,
-  SHIP_STATS,
+  SHIP_STATS, PALIVE, TRACTDIST, MAXPLAYER, TWIDTH,
 } from './constants';
 
 export class InputHandler {
@@ -42,6 +42,14 @@ export class InputHandler {
   private turnSubDir = 0;
   // Throttle for held ArrowUp/Down speed changes
   private lastSpeedTickTime = 0;
+
+  // Beam attempt retry interval (retries lock-on every 1s for up to 5s)
+  private beamRetryInterval: ReturnType<typeof setInterval> | null = null;
+
+  // Mouse cursor position in galactic coords (null = no mouse, keyboard-only)
+  private cursorGX: number | null = null;
+  private cursorGY: number | null = null;
+  private lastMouseMoveTime = 0;
 
   constructor(net: NetrekConnection, state: GameState, renderer: Renderer) {
     this.net = net;
@@ -76,6 +84,7 @@ export class InputHandler {
     document.addEventListener('keydown', (e) => { this.net.notifyInput(); this.onKeyDown(e); });
     document.addEventListener('keyup', (e) => { this.net.notifyInput(); this.onKeyUp(e); });
     canvas.addEventListener('mousedown', (e) => { this.net.notifyInput(); this.onMouseDown(e, canvas); });
+    canvas.addEventListener('mousemove', (e) => this.onMouseMove(e, canvas));
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
@@ -103,7 +112,7 @@ export class InputHandler {
         let newSpeed = base;
         if (up) newSpeed = Math.min(base + 1, maxSpeed);
         if (down) newSpeed = Math.max(base - 1, 0);
-        if (newSpeed !== this.state.desiredSpeed) {
+        if (newSpeed !== base) {
           this.state.desiredSpeed = newSpeed;
           this.net.sendSpeed(newSpeed);
         }
@@ -280,18 +289,22 @@ export class InputHandler {
     const me = this.state.players[this.state.myNumber];
     if (!me) return;
 
-    // Speed keys: 0-9
-    if (key >= '0' && key <= '9') {
-      this.state.desiredSpeed = parseInt(key);
-      this.net.sendSpeed(this.state.desiredSpeed);
+    // Speed keys: 0-9, shift combos for 10-12
+    const maxSpeed = SHIP_STATS[me.shipType]?.speed ?? 12;
+    let speedReq = -1;
+    if (key >= '0' && key <= '9') speedReq = parseInt(key);
+    else if (key === '!' || key === ')') speedReq = 10;
+    else if (key === '@') speedReq = 11;
+    else if (key === '#' || key === '%') speedReq = 12;
+    if (speedReq >= 0) {
+      const clamped = Math.min(speedReq, maxSpeed);
+      if (clamped !== me.speed) {
+        this.state.desiredSpeed = clamped;
+        this.net.sendSpeed(clamped);
+      }
       e.preventDefault();
       return;
     }
-
-    // Speed 10-12 via shift+number
-    if (key === '!' || key === ')') { this.state.desiredSpeed = 10; this.net.sendSpeed(10); e.preventDefault(); return; }
-    if (key === '@') { this.state.desiredSpeed = 11; this.net.sendSpeed(11); e.preventDefault(); return; }
-    if (key === '#' || key === '%') { this.state.desiredSpeed = 12; this.net.sendSpeed(12); e.preventDefault(); return; }
 
     // ArrowUp/ArrowDown handled in tickHeldKeys() for reliable held-key behavior
     if (key === 'ArrowUp' || key === 'ArrowDown') {
@@ -357,15 +370,39 @@ export class InputHandler {
         this.net.sendPlasma(me.dir);
         break;
 
-      // Tractor beam toggle
-      case 'r':
-        this.net.sendTractor(!(me.flags & PFTRACT), 0);
+      // Tractor beam
+      case 'r': {
+        if (this.state.beamAttempt) {
+          // Attempt in progress — cancel
+          this.net.sendTractor(false, 0);
+          this.cancelBeamAttempt();
+        } else if (me.flags & PFTRACT) {
+          // Currently locked (tractor or pressor) — break
+          this.net.sendTractor(false, 0);
+        } else {
+          // Start new tractor attempt
+          const target = this.findNearestTarget();
+          if (target >= 0) this.startBeamAttempt(false, target);
+        }
         break;
+      }
 
-      // Repressor toggle
-      case 'y':
-        this.net.sendRepress(!(me.flags & PFPRESS), 0);
+      // Pressor beam
+      case 'y': {
+        if (this.state.beamAttempt) {
+          // Attempt in progress — cancel
+          this.net.sendRepress(false, 0);
+          this.cancelBeamAttempt();
+        } else if (me.flags & PFPRESS) {
+          // Currently pressing — break
+          this.net.sendRepress(false, 0);
+        } else {
+          // Start new pressor attempt
+          const target = this.findNearestTarget();
+          if (target >= 0) this.startBeamAttempt(true, target);
+        }
         break;
+      }
 
       // War declaration: cycle through enemy teams
       case 'W': {
@@ -426,6 +463,61 @@ export class InputHandler {
     }
   }
 
+  /** Start a 5s beam lock-on attempt with automatic retries every 1s. */
+  private startBeamAttempt(isPressor: boolean, target: number) {
+    const me = this.state.players[this.state.myNumber];
+
+    // Send initial request
+    if (isPressor) {
+      this.net.sendRepress(true, target);
+    } else {
+      this.net.sendTractor(true, target);
+    }
+
+    this.state.beamAttempt = {
+      playerNum: me.number, targetNum: target,
+      isPressor, time: Date.now(),
+    };
+
+    // Retry every 1s until confirmed or 5s timeout
+    this.clearBeamRetry();
+    this.beamRetryInterval = setInterval(() => {
+      const attempt = this.state.beamAttempt;
+      if (!attempt) { this.clearBeamRetry(); return; }
+
+      const me = this.state.players[this.state.myNumber];
+      if (!me || me.status !== PALIVE) { this.cancelBeamAttempt(); return; }
+
+      // Server confirmed the lock
+      const confirmed = attempt.isPressor
+        ? !!(me.flags & PFPRESS)
+        : !!(me.flags & PFTRACT);
+      if (confirmed) { this.cancelBeamAttempt(); return; }
+
+      // 5s timeout — give up
+      if (Date.now() - attempt.time > 5000) { this.cancelBeamAttempt(); return; }
+
+      // Resend lock request
+      if (attempt.isPressor) {
+        this.net.sendRepress(true, attempt.targetNum);
+      } else {
+        this.net.sendTractor(true, attempt.targetNum);
+      }
+    }, 1000);
+  }
+
+  private cancelBeamAttempt() {
+    this.state.beamAttempt = null;
+    this.clearBeamRetry();
+  }
+
+  private clearBeamRetry() {
+    if (this.beamRetryInterval !== null) {
+      clearInterval(this.beamRetryInterval);
+      this.beamRetryInterval = null;
+    }
+  }
+
   private handleChatInput(e: KeyboardEvent) {
     e.preventDefault();
 
@@ -459,6 +551,89 @@ export class InputHandler {
     const prefix = this.chatTarget === 'all' ? '[ALL]' : this.chatTarget === 'team' ? '[TEAM]' : `[P${this.chatTarget}]`;
     this.state.warningText = `${prefix} > ${this.chatBuffer}_`;
     this.state.warningTime = Date.now();
+  }
+
+  /** Convert canvas pixel coordinates to galactic coordinates. */
+  private canvasToGalactic(mx: number, my: number): { gx: number; gy: number } | null {
+    const me = this.state.players[this.state.myNumber];
+    if (!me) return null;
+    const size = this.renderer.canvasSize;
+    const scale = size / TWIDTH;
+    const gx = me.x + (mx - size / 2) / scale;
+    const gy = me.y + (my - size / 2) / scale;
+    return { gx, gy };
+  }
+
+  private onMouseMove(e: MouseEvent, canvas: HTMLCanvasElement) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const pos = this.canvasToGalactic(mx, my);
+    if (pos) {
+      this.cursorGX = pos.gx;
+      this.cursorGY = pos.gy;
+      this.lastMouseMoveTime = Date.now();
+    }
+  }
+
+  /**
+   * Find the nearest alive, non-cloaked enemy player.
+   * Mouse users: nearest to cursor. Keyboard-only: nearest in ship direction.
+   * Returns player number or -1 if none found.
+   */
+  private findNearestTarget(): number {
+    const s = this.state;
+    const me = s.players[s.myNumber];
+    if (!me) return -1;
+
+    const useCursor = this.cursorGX !== null && (Date.now() - this.lastMouseMoveTime < 5000);
+    const refX = useCursor ? this.cursorGX! : me.x;
+    const refY = useCursor ? this.cursorGY! : me.y;
+
+    // Only consider targets within 125% of tractor range
+    const maxRange = TRACTDIST * (SHIP_STATS[me.shipType]?.tractRng ?? 1.0) * 1.25;
+
+    let bestNum = -1;
+    let bestDist = Infinity;
+
+    // For keyboard-only: compute ship direction vector for angular weighting
+    const shipAngle = (me.dir / 256) * Math.PI * 2 - Math.PI / 2; // netrek dir to radians
+
+    for (let i = 0; i < MAXPLAYER; i++) {
+      if (i === me.number) continue;
+      const p = s.players[i];
+      if (p.status !== PALIVE) continue;
+      if (p.flags & PFCLOAK) continue; // can't target cloaked
+
+      const dx = p.x - me.x;
+      const dy = p.y - me.y;
+      const distFromMe = Math.sqrt(dx * dx + dy * dy);
+      if (distFromMe > maxRange) continue;
+
+      if (useCursor) {
+        const cdx = p.x - refX;
+        const cdy = p.y - refY;
+        const distFromCursor = Math.sqrt(cdx * cdx + cdy * cdy);
+        if (distFromCursor < bestDist) {
+          bestDist = distFromCursor;
+          bestNum = i;
+        }
+      } else {
+        // Keyboard-only: weight by angular proximity to ship heading
+        const angleToPlayer = Math.atan2(dy, dx);
+        let angleDiff = Math.abs(angleToPlayer - shipAngle);
+        if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+
+        // Score: prefer close + on-heading
+        const score = distFromMe * (1 + angleDiff * 2);
+        if (score < bestDist) {
+          bestDist = score;
+          bestNum = i;
+        }
+      }
+    }
+
+    return bestNum;
   }
 
   private onMouseDown(e: MouseEvent, canvas: HTMLCanvasElement) {
