@@ -522,8 +522,14 @@ export class ShipEffects {
         continue;
       }
 
+      // Reset stale banking state when ship first appears (prevents trail stretching)
+      const wasHidden = !state.group.visible;
       state.group.visible = true;
       state.group.position.set(player.renderX, 10, player.renderY);
+      if (wasHidden) {
+        state.prevDir = player.dir;
+        state.bankAngle = 0;
+      }
 
       // Rotation: game dir 0-255 → radians. Dir 0 = north (-Z in Three.js)
       // Ship models point toward -Z by default, so rotation.y = angle from north CW
