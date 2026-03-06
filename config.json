@@ -1,4 +1,7 @@
 {
+  "analytics": {
+    "umamiWebsiteId": ""
+  },
   "server": {
     "name": "NeoNetrek London",
     "tagline": "The original NeoNetrek server. Welcome, pilot.",

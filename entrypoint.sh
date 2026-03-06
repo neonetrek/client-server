@@ -26,6 +26,17 @@ if [ -f "$CONFIG_FILE" ]; then
 
   echo "[entrypoint] Generated /opt/portal/config.js"
 
+  # Inject Umami analytics script if configured
+  UMAMI_ID=$(jq -r '.analytics.umamiWebsiteId // empty' "$CONFIG_FILE")
+  if [ -n "$UMAMI_ID" ]; then
+    UMAMI_TAG='<script defer src="https:\/\/cloud.umami.is\/script.js" data-website-id="'"$UMAMI_ID"'"><\/script>'
+    sed -i "s|<!-- __UMAMI_SCRIPT__.*-->|$UMAMI_TAG|" /opt/portal/index.html
+    sed -i "s|<!-- __UMAMI_SCRIPT__.*-->|$UMAMI_TAG|" /opt/web-client/index.html
+    echo "[entrypoint] Injected Umami analytics (website ID: $UMAMI_ID)"
+  else
+    echo "[entrypoint] No Umami analytics configured"
+  fi
+
   # Generate in-game motd
   jq -r '.server.motd // "Welcome to NeoNetrek!"' "$CONFIG_FILE" > "$NETREK_DIR/etc/motd"
   echo "[entrypoint] Generated $NETREK_DIR/etc/motd"
