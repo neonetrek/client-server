@@ -491,6 +491,11 @@ export class ShipEffects {
     const now = Date.now();
     const halfRange = tacRange / 2 + 1000;
 
+    // Check if our player is tractoring/pressing someone (we get their real position)
+    const me = players[myNumber];
+    const myTractTarget = (me && me.status === 2 && (me.flags & (PFTRACT | PFPRESS)))
+      ? me.tractTarget : -1;
+
     for (let i = 0; i < MAXPLAYER; i++) {
       const player = players[i];
       const state = this.states[i];
@@ -503,8 +508,8 @@ export class ShipEffects {
         continue;
       }
 
-      // Cloaked enemy
-      if ((player.flags & PFCLOAK) && player.number !== myNumber) {
+      // Cloaked enemy: hide unless WE are tractoring them (server sends real position)
+      if ((player.flags & PFCLOAK) && player.number !== myNumber && i !== myTractTarget) {
         state.group.visible = false;
         continue;
       }
@@ -575,7 +580,7 @@ export class ShipEffects {
         }
       }
 
-      // Cloak bubble (own ship only — enemies are hidden entirely)
+      // Cloak bubble (own ship + enemies we're tractoring shown as faded hex grid)
       state.cloak.visible = cloaked;
       if (cloaked) {
         state.cloakUniforms.uTime.value = now * 0.001;
