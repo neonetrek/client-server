@@ -288,81 +288,14 @@ That's it — the client already connects to a WebSocket URL. Just make the URL 
 - `portal/js/portal.js` — fetch `/api/instances`, render cards, poll player counts
 - `web-client/src/main.ts` — read `?server=` URL param for WebSocket target
 
-### Phase 3 — TypeScript Bot Framework (Future)
+### ~~Phase 3 — TypeScript Bot Framework~~ (Rejected)
 
-Build bots in TypeScript that connect via WebSocket, reusing the web client's protocol code. Independent of Phases 1-2.
+Client-side bots are not needed. The C server's robotd is a battle-tested, sophisticated bot system with 35 files of proven AI logic (dogfighting, dodging, ogging, assault, escort). Reimplementing this in TypeScript would duplicate effort for an inferior result — the server-side bots have direct access to game state without network latency, and their AI has been refined over decades of Netrek history. Use the existing C bots via `PRET=1` in config.json instead.
 
-#### Structure
-
-```
-bot/
-  src/
-    index.ts          — Entry point, spawns N bots
-    bot-client.ts     — WebSocket connection + binary protocol (reuse protocol.ts)
-    brain.ts          — State machine: decide → engage → dodge → assault
-    navigation.ts     — Course-setting, intercept math, orbit locking
-    combat.ts         — Torpedo intercept trajectories, phaser range, dodge vectors
-    strategy.ts       — decide() loop: protect, bomb, ogg, escort, flee
-    difficulty.ts     — Reaction delay, accuracy jitter, strategy depth per level
-```
-
-#### Shared Code
-
-Extract from `web-client/src/` into a shared package or duplicate:
-- `protocol.ts` — Binary packet encode/decode
-- `constants.ts` — Teams, ship types, dimensions
-- `state.ts` — GameState type definitions
-
-#### Bot State Machine
-
-```
-┌──────────┐
-│  OUTFIT   │──select team/ship──▶┌──────────┐
-└──────────┘                      │  DECIDE   │◀─────────────┐
-                                  └─────┬─────┘              │
-                          ┌─────────────┼─────────────┐      │
-                          ▼             ▼             ▼      │
-                    ┌──────────┐  ┌──────────┐  ┌─────────┐ │
-                    │  ENGAGE  │  │ ASSAULT  │  │  ESCORT │ │
-                    │ dogfight │  │ bomb/take│  │ protect │ │
-                    └────┬─────┘  └────┬─────┘  └────┬────┘ │
-                         │             │             │      │
-                         ▼             ▼             ▼      │
-                    ┌──────────────────────────────────────┐ │
-                    │         DODGE / DISENGAGE            │─┘
-                    │  (low fuel/hull → retreat & repair)  │
-                    └─────────────────────────────────────┘
-```
-
-#### Key Algorithms
-
-**Torpedo intercept**: Given enemy position `(ex, ey)`, velocity `(evx, evy)`, and torpedo speed `ts`, solve for the firing angle that hits the moving target.
-
-**Dodge**: For each incoming torpedo, project its path forward. If it intersects our ship within N ticks, compute the perpendicular escape vector.
-
-**decide()** priority order:
-1. Flee if hull < 30% or fuel < 15%
-2. Repair at nearest friendly planet if damaged
-3. Ogg enemy army carriers (highest strategic value)
-4. Bomb enemy planets with 5+ armies
-5. Take neutral/weakened planets if carrying armies
-6. Escort friendly carriers
-7. Dogfight nearest enemy
-
-#### Difficulty Levels
-
-| Level | Reaction Delay | Aim Jitter | Strategy |
-|-------|---------------|------------|----------|
-| Easy | 500ms | ±20° | Dogfight only, no cloaking |
-| Medium | 200ms | ±8° | Bomb + dogfight, basic dodge |
-| Hard | 50ms | ±2° | Full strategy, cloak ogging |
-
-### Phase 4 — Polish & Integration
+### Phase 3 — Polish & Integration
 
 1. **Player list indicator**: Show `[R]` next to robot players in the web client player list (check `PFROBOT` flag)
 2. **Instance status on portal**: Live player count badges, color-coded (green = active game, yellow = waiting, gray = empty)
-3. **Bot count config**: Per-instance environment variable to control how many TS bots auto-spawn
-4. **LLM coordination** (experimental): Use an LLM to assign bot team roles (bomber, escort, ogger, defender) based on game state
 
 ---
 
@@ -385,17 +318,8 @@ Extract from `web-client/src/` into a shared package or duplicate:
 | `web-client/src/main.ts` | Read `?server=` URL param for WS target |
 | Deploy repos: `config.json` | Unified server branding + instance definitions with inline sysdef |
 
-### Phase 3 (TypeScript Bots)
-| File | Change |
-|------|--------|
-| `bot/` (new directory) | TypeScript bot framework |
-| `bot/src/index.ts` | Bot spawner |
-| `bot/src/bot-client.ts` | WebSocket protocol client |
-| `bot/src/brain.ts` | State machine |
-| `bot/src/navigation.ts` | Movement math |
-| `bot/src/combat.ts` | Weapon targeting |
-| `bot/src/strategy.ts` | Strategic decisions |
-| `bot/src/difficulty.ts` | Difficulty scaling |
+### ~~Phase 3 (TypeScript Bots)~~ — Rejected
+Client-side bots not needed; use C server robotd via `PRET=1` instead.
 
 ## Deployment: Fly.io & Railway
 
