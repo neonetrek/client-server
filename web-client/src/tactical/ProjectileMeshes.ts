@@ -46,6 +46,9 @@ interface TractorBeamRefs {
   glow: THREE.Mesh;
   beam: THREE.Mesh;
   core: THREE.Mesh;
+  glowMat: THREE.ShaderMaterial;
+  beamMat: THREE.ShaderMaterial;
+  coreMat: THREE.ShaderMaterial;
 }
 
 // ============================================================
@@ -136,59 +139,73 @@ function createBeamGroup(radii: [number, number, number], opacities: [number, nu
 }
 
 // ============================================================
-// Tractor beam visuals (gradient-textured planes for soft glow)
+// Tractor beam visuals — animated wave bands along beam
+// Tractor: waves flow toward source (pulling in)
+// Pressor: waves flow toward target (pushing away)
 // ============================================================
 
-let _beamTex: THREE.CanvasTexture | null = null;
-function beamGradientTexture(): THREE.CanvasTexture {
-  if (_beamTex) return _beamTex;
-  const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 1;
-  const ctx = c.getContext('2d')!;
-  const g = ctx.createLinearGradient(0, 0, 128, 0);
-  g.addColorStop(0, 'rgba(255,255,255,0)');
-  g.addColorStop(0.15, 'rgba(255,255,255,0)');
-  g.addColorStop(0.3, 'rgba(255,255,255,0.08)');
-  g.addColorStop(0.42, 'rgba(255,255,255,0.4)');
-  g.addColorStop(0.5, 'rgba(255,255,255,1)');
-  g.addColorStop(0.58, 'rgba(255,255,255,0.4)');
-  g.addColorStop(0.7, 'rgba(255,255,255,0.08)');
-  g.addColorStop(0.85, 'rgba(255,255,255,0)');
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 128, 1);
-  _beamTex = new THREE.CanvasTexture(c);
-  return _beamTex;
-}
+const tractorVertexShader = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const tractorFragmentShader = /* glsl */ `
+  uniform float uTime;
+  uniform float uBaseOpacity;
+  uniform vec3 uColor;
+  uniform float uDirection;
+
+  varying vec2 vUv;
+
+  void main() {
+    // Soft edge fade across beam width
+    float edge = 1.0 - abs(vUv.x - 0.5) * 2.0;
+    edge = smoothstep(0.0, 0.35, edge);
+
+    // Animated wave bands along beam length
+    float wave = sin((vUv.y * 10.0 + uTime * 2.5 * uDirection) * 6.2832);
+    wave = wave * 0.35 + 0.65;
+
+    float alpha = edge * uBaseOpacity * wave;
+    gl_FragColor = vec4(uColor, alpha);
+  }
+`;
 
 function createTractorBeamGroup(): TractorBeamRefs {
   const g = new THREE.Group();
-  const tex = beamGradientTexture();
 
-  const makePlane = (width: number, opacity: number, color: number, useTexture: boolean): THREE.Mesh => {
+  const makeWavePlane = (width: number, baseOpacity: number): { mesh: THREE.Mesh; mat: THREE.ShaderMaterial } => {
     const geo = new THREE.PlaneGeometry(width, 1);
-    const mat = new THREE.MeshBasicMaterial({
-      color,
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: tractorVertexShader,
+      fragmentShader: tractorFragmentShader,
+      uniforms: {
+        uTime: { value: 0 },
+        uBaseOpacity: { value: baseOpacity },
+        uColor: { value: new THREE.Color(0x4488ff) },
+        uDirection: { value: 1.0 },
+      },
       transparent: true,
-      opacity,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
       depthWrite: false,
-      ...(useTexture ? { map: tex } : {}),
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = -Math.PI / 2; // lay flat in XZ plane
     g.add(mesh);
-    return mesh;
+    return { mesh, mat };
   };
 
   // Wide soft glow, medium beam body, narrow bright core
-  const glow = makePlane(1200, 0.12, 0x4488ff, true);
-  const beam = makePlane(400, 0.35, 0x4488ff, true);
-  const core = makePlane(60, 0.9, 0xaaccff, false);
+  // Ship width is 750 — keep beams proportional
+  const { mesh: glow, mat: glowMat } = makeWavePlane(800, 0.12);
+  const { mesh: beam, mat: beamMat } = makeWavePlane(300, 0.35);
+  const { mesh: core, mat: coreMat } = makeWavePlane(60, 0.9);
 
-  return { group: g, glow, beam, core };
+  return { group: g, glow, beam, core, glowMat, beamMat, coreMat };
 }
 
 // ============================================================
@@ -479,22 +496,26 @@ export class ProjectileMeshes {
       const isPressor = !!(player.flags & PFPRESS);
       const beamColor = isPressor ? 0xff3333 : 0x4488ff;
       const coreColor = isPressor ? 0xffaaaa : 0xaaccff;
-
-      // TNG shimmer: gentle sinusoidal pulsing
-      const shimmer = Math.sin(now * 0.006 + player.number * 1.7) * 0.15 + 0.85;
+      const direction = isPressor ? -1.0 : 1.0;
+      const timeVal = now * 0.001;
 
       // Scale planes: x = width (set at creation), y = length along beam
       refs.glow.scale.set(1, length, 1);
       refs.beam.scale.set(1, length, 1);
       refs.core.scale.set(1, length, 1);
 
-      (refs.glow.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
-      (refs.beam.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
-      (refs.core.material as THREE.MeshBasicMaterial).color.setHex(coreColor);
+      // Update shader uniforms — wave animation + color
+      refs.glowMat.uniforms.uTime.value = timeVal;
+      refs.glowMat.uniforms.uColor.value.setHex(beamColor);
+      refs.glowMat.uniforms.uDirection.value = direction;
 
-      (refs.glow.material as THREE.MeshBasicMaterial).opacity = 0.12 * shimmer;
-      (refs.beam.material as THREE.MeshBasicMaterial).opacity = 0.35 * shimmer;
-      (refs.core.material as THREE.MeshBasicMaterial).opacity = 0.9 * shimmer;
+      refs.beamMat.uniforms.uTime.value = timeVal;
+      refs.beamMat.uniforms.uColor.value.setHex(beamColor);
+      refs.beamMat.uniforms.uDirection.value = direction;
+
+      refs.coreMat.uniforms.uTime.value = timeVal;
+      refs.coreMat.uniforms.uColor.value.setHex(coreColor);
+      refs.coreMat.uniforms.uDirection.value = direction;
     }
 
     // --- BeamAttempt: flickering beam while trying to lock on ---
@@ -530,23 +551,32 @@ export class ProjectileMeshes {
 
           const beamColor = attempt.isPressor ? 0xff3333 : 0x4488ff;
           const coreColor = attempt.isPressor ? 0xffaaaa : 0xaaccff;
+          const direction = attempt.isPressor ? -1.0 : 1.0;
 
           // Erratic flicker: multiple sine waves at incommensurate frequencies
           const f = Math.sin(now * 0.03) * Math.sin(now * 0.047) * Math.sin(now * 0.013);
           const fade = 1 - elapsed / 5000;
           const flickerAlpha = Math.max(0, f * 0.5 + 0.5) * fade;
+          const timeVal = now * 0.001;
 
           refs.glow.scale.set(1, length, 1);
           refs.beam.scale.set(1, length, 1);
           refs.core.scale.set(1, length, 1);
 
-          (refs.glow.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
-          (refs.beam.material as THREE.MeshBasicMaterial).color.setHex(beamColor);
-          (refs.core.material as THREE.MeshBasicMaterial).color.setHex(coreColor);
+          refs.glowMat.uniforms.uTime.value = timeVal;
+          refs.glowMat.uniforms.uColor.value.setHex(beamColor);
+          refs.glowMat.uniforms.uDirection.value = direction;
+          refs.glowMat.uniforms.uBaseOpacity.value = 0.12 * flickerAlpha;
 
-          (refs.glow.material as THREE.MeshBasicMaterial).opacity = 0.12 * flickerAlpha;
-          (refs.beam.material as THREE.MeshBasicMaterial).opacity = 0.35 * flickerAlpha;
-          (refs.core.material as THREE.MeshBasicMaterial).opacity = 0.9 * flickerAlpha;
+          refs.beamMat.uniforms.uTime.value = timeVal;
+          refs.beamMat.uniforms.uColor.value.setHex(beamColor);
+          refs.beamMat.uniforms.uDirection.value = direction;
+          refs.beamMat.uniforms.uBaseOpacity.value = 0.35 * flickerAlpha;
+
+          refs.coreMat.uniforms.uTime.value = timeVal;
+          refs.coreMat.uniforms.uColor.value.setHex(coreColor);
+          refs.coreMat.uniforms.uDirection.value = direction;
+          refs.coreMat.uniforms.uBaseOpacity.value = 0.9 * flickerAlpha;
         }
       }
     }
