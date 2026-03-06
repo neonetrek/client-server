@@ -43,14 +43,14 @@ export class AudioEngine {
     return this.torpNoiseBuffer;
   }
 
-  /** Get or create a cached noise buffer for ship explosions */
+  /** Get or create a cached noise buffer for ship explosions (1s raw white noise) */
   private getShipNoiseBuffer(ctx: AudioContext): AudioBuffer {
     if (!this.shipNoiseBuffer || this.shipNoiseBuffer.sampleRate !== ctx.sampleRate) {
-      const bufferSize = Math.floor(ctx.sampleRate * 0.3);
+      const bufferSize = Math.floor(ctx.sampleRate * 1.0);
       this.shipNoiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = this.shipNoiseBuffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+        data[i] = Math.random() * 2 - 1;
       }
     }
     return this.shipNoiseBuffer;
@@ -138,42 +138,103 @@ export class AudioEngine {
     noise.stop(ctx.currentTime + 0.2);
   }
 
-  /** Ship explosion - big boom with rumble */
+  /** Ship explosion - cinematic multi-layered explosion (~1.5s) */
   playShipExplode() {
     if (this.muted) return;
     const ctx = this.ensureContext();
+    const t = ctx.currentTime;
+    const vol = this.volume;
 
-    // Low-frequency oscillator for the boom
-    const osc = ctx.createOscillator();
-    const oscGain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(80, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(20, ctx.currentTime + 0.5);
-    oscGain.gain.setValueAtTime(this.volume * 0.6, ctx.currentTime);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-    osc.connect(oscGain);
-    oscGain.connect(ctx.destination);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.5);
+    // Layer 1: Initial transient crack (0–50ms)
+    {
+      const noise = ctx.createBufferSource();
+      noise.buffer = this.getShipNoiseBuffer(ctx);
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(2000, t);
+      bp.Q.setValueAtTime(2, t);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(vol * 0.7, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      noise.connect(bp);
+      bp.connect(gain);
+      gain.connect(ctx.destination);
+      noise.start(t);
+      noise.stop(t + 0.05);
+    }
 
-    // Reuse pre-generated noise buffer
-    const noise = ctx.createBufferSource();
-    noise.buffer = this.getShipNoiseBuffer(ctx);
+    // Layer 2: Deep boom (0–800ms)
+    {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(60, t);
+      osc.frequency.exponentialRampToValueAtTime(15, t + 0.8);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(vol * 0.8, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.8);
+    }
 
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1000, ctx.currentTime);
-    filter.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.4);
+    // Layer 3: Mid rumble (50–1200ms)
+    {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(120, t);
+      osc.frequency.exponentialRampToValueAtTime(30, t + 1.2);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(vol * 0.5, t + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 1.2);
+    }
 
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(this.volume * 0.4, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    // Layer 4: Noise body with distortion (0–1000ms)
+    {
+      const noise = ctx.createBufferSource();
+      noise.buffer = this.getShipNoiseBuffer(ctx);
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(2000, t);
+      lp.frequency.exponentialRampToValueAtTime(80, t + 1.0);
+      const shaper = ctx.createWaveShaper();
+      const curve = new Float32Array(256);
+      for (let i = 0; i < 256; i++) {
+        const x = (i / 128) - 1;
+        curve[i] = (Math.PI + 3) * x / (Math.PI + 3 * Math.abs(x));
+      }
+      shaper.curve = curve;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(vol * 0.5, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+      noise.connect(lp);
+      lp.connect(shaper);
+      shaper.connect(gain);
+      gain.connect(ctx.destination);
+      noise.start(t);
+      noise.stop(t + 1.0);
+    }
 
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(ctx.destination);
-    noise.start(ctx.currentTime);
-    noise.stop(ctx.currentTime + 0.4);
+    // Layer 5: Sub-bass tail (200–1500ms)
+    {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(30, t);
+      osc.frequency.exponentialRampToValueAtTime(10, t + 1.5);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(vol * 0.4, t + 0.2);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 1.5);
+    }
   }
 
   /** Plasma fire - deep resonant pulse */

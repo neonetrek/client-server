@@ -648,11 +648,15 @@ describe('NetrekConnection', () => {
 
     it('updates phaser fields', () => {
       const ws = connectAndOpen();
+      // Set target player position so PHHIT snapshot picks it up
+      state.players[5].x = 50000;
+      state.players[5].y = 50000;
       // SP_PHASER: !bbbBlll -> type, pnum, status, dir, x, y, target
       const pkt = buildPacket(SP.PHASER, 2, PHHIT, 128, 50000, 50000, 5);
       simulatePacket(ws, pkt);
       expect(state.phasers[2].status).toBe(PHHIT);
       expect(state.phasers[2].dir).toBe(128);
+      // PHHIT snapshots target player's position into x/y
       expect(state.phasers[2].x).toBe(50000);
       expect(state.phasers[2].y).toBe(50000);
       expect(state.phasers[2].target).toBe(5);

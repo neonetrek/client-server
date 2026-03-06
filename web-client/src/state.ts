@@ -49,6 +49,7 @@ export interface Torpedo {
   y: number;
   dir: number;
   war: number;
+  explodeStart: number; // timestamp when explosion began
 }
 
 export interface Plasma {
@@ -58,6 +59,7 @@ export interface Plasma {
   x: number;
   y: number;
   war: number;
+  explodeStart: number; // timestamp when explosion began
 }
 
 export interface Phaser {
@@ -161,12 +163,12 @@ function createPlayer(num: number): Player {
 function createTorp(num: number): Torpedo {
   return {
     number: num, owner: Math.floor(num / MAXTORP),
-    status: TFREE, x: 0, y: 0, dir: 0, war: 0,
+    status: TFREE, x: 0, y: 0, dir: 0, war: 0, explodeStart: 0,
   };
 }
 
 function createPlasma(num: number): Plasma {
-  return { number: num, owner: num, status: PTFREE, x: 0, y: 0, war: 0 };
+  return { number: num, owner: num, status: PTFREE, x: 0, y: 0, war: 0, explodeStart: 0 };
 }
 
 function createPhaser(num: number): Phaser {

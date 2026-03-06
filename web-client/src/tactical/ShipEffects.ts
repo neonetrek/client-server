@@ -533,8 +533,8 @@ export class ShipEffects {
       // Ship mesh & cloak
       const cloaked = !!(player.flags & PFCLOAK);
       if (state.shipMesh) {
-        // Hide ship model when cloaked, show cloak hex bubble instead
-        state.shipMesh.visible = !cloaked;
+        // Hide ship model when exploding or cloaked
+        state.shipMesh.visible = !cloaked && !exploding;
 
         // Banking (heading lean + roll, visible from top-down camera)
         let dirDelta = player.dir - state.prevDir;
@@ -550,7 +550,7 @@ export class ShipEffects {
       }
 
       // Shield bubble
-      const hasShield = !!(player.flags & PFSHIELD);
+      const hasShield = !!(player.flags & PFSHIELD) && !exploding;
       state.shield.visible = hasShield;
       if (hasShield) {
         const stats = SHIP_STATS[player.shipType];
@@ -581,7 +581,7 @@ export class ShipEffects {
       }
 
       // Cloak bubble (own ship + enemies we're tractoring shown as faded hex grid)
-      state.cloak.visible = cloaked;
+      state.cloak.visible = cloaked && !exploding;
       if (cloaked) {
         state.cloakUniforms.uTime.value = now * 0.001;
         state.cloakUniforms.uOpacity.value = 0.2 + Math.sin(now * 0.005) * 0.05;
@@ -594,7 +594,7 @@ export class ShipEffects {
       }
 
       // Warp trail strips — GPU-driven, just update uniforms
-      if (player.speed > 0 && state.shipMesh) {
+      if (player.speed > 0 && state.shipMesh && !exploding) {
         const stats = SHIP_STATS[player.shipType];
         const maxSpeed = stats?.speed ?? 12;
         const t = player.speed / maxSpeed;
@@ -666,17 +666,21 @@ export class ShipEffects {
       }
 
       // Label text computation — stored for getLabelData()
-      const isMe = player.number === myNumber;
-      const tc = TEAM_COLORS[player.team] ?? TEAM_COLORS[IND];
-      const labelColor = isMe ? '#ffffff' : tc;
-      const teamLetter = TEAM_LETTERS[player.team] ?? '?';
-      const shipShort = SHIP_SHORT[player.shipType] ?? '??';
-      let labelText = `${teamLetter}${player.number}\n${shipShort}`;
-      if (player.kills >= 1) labelText += `\n${'★'.repeat(Math.min(5, Math.floor(player.kills)))}`;
-      if (player.armies > 0) labelText += `\n♦${player.armies}`;
+      if (exploding) {
+        state.lastLabelText = '';
+      } else {
+        const isMe = player.number === myNumber;
+        const tc = TEAM_COLORS[player.team] ?? TEAM_COLORS[IND];
+        const labelColor = isMe ? '#ffffff' : tc;
+        const teamLetter = TEAM_LETTERS[player.team] ?? '?';
+        const shipShort = SHIP_SHORT[player.shipType] ?? '??';
+        let labelText = `${teamLetter}${player.number}\n${shipShort}`;
+        if (player.kills >= 1) labelText += `\n${'★'.repeat(Math.min(5, Math.floor(player.kills)))}`;
+        if (player.armies > 0) labelText += `\n♦${player.armies}`;
 
-      state.lastLabelText = labelText;
-      state.lastLabelColor = labelColor;
+        state.lastLabelText = labelText;
+        state.lastLabelColor = labelColor;
+      }
 
       // Update tracking
       state.lastShield = player.shield;

@@ -433,6 +433,11 @@ export class NetrekConnection {
         } else if (status === TMOVE && oldTorpStatus !== TMOVE && s.torps[tnum].owner === s.myNumber) {
           this.audio.playTorpFire();
         }
+        if (status === TEXPLODE && oldTorpStatus !== TEXPLODE) {
+          s.torps[tnum].explodeStart = Date.now();
+        } else if (status !== TEXPLODE) {
+          s.torps[tnum].explodeStart = 0;
+        }
         s.torps[tnum].status = status;
         s.torps[tnum].war = war;
         break;
@@ -459,9 +464,20 @@ export class NetrekConnection {
         s.phasers[pnum].x = f[4] as number;
         s.phasers[pnum].y = f[5] as number;
         s.phasers[pnum].target = f[6] as number;
-        // Only set fuseStart for active phaser states; clear for PHFREE
+        // Only set fuseStart once per phaser activation; clear for PHFREE.
+        // Repeated PHHIT packets must not reset the timer (prevents beam lingering).
         if (phaserStatus === PHHIT || phaserStatus === PHHIT2 || phaserStatus === PHMISS) {
-          s.phasers[pnum].fuseStart = Date.now();
+          if (!s.phasers[pnum].fuseStart) {
+            s.phasers[pnum].fuseStart = Date.now();
+          }
+          // For PHHIT, snapshot target position so beam doesn't track a dying target
+          if (phaserStatus === PHHIT) {
+            const tgt = s.players[f[6] as number];
+            if (tgt) {
+              s.phasers[pnum].x = tgt.x;
+              s.phasers[pnum].y = tgt.y;
+            }
+          }
         } else {
           s.phasers[pnum].fuseStart = 0;
         }
@@ -484,6 +500,11 @@ export class NetrekConnection {
         } else if (status === PTEXPLODE && oldPlasmaStatus !== PTEXPLODE &&
                    this.inTacRange(s.plasmas[pnum].x, s.plasmas[pnum].y)) {
           this.audio.playTorpExplode();
+        }
+        if (status === PTEXPLODE && oldPlasmaStatus !== PTEXPLODE) {
+          s.plasmas[pnum].explodeStart = Date.now();
+        } else if (status !== PTEXPLODE) {
+          s.plasmas[pnum].explodeStart = 0;
         }
         s.plasmas[pnum].status = status;
         s.plasmas[pnum].war = war;

@@ -16,6 +16,7 @@ const TWO_PI = Math.PI * 2;
 const TORP_RADIUS = 20;
 const PLASMA_RADIUS = 40;
 const PHASER_DISPLAY_MS = 500;
+const EXPLODE_DISPLAY_MS = 400;
 
 // ============================================================
 // Cached-ref interfaces (avoid traverse/getObjectByName per frame)
@@ -344,16 +345,20 @@ export class ProjectileMeshes {
         refs.group.visible = false;
         const dx = torp.x - playerX;
         const dz = torp.y - playerZ;
-        if (Math.abs(dx) > halfRange || Math.abs(dz) > halfRange) {
+        const elapsed = torp.explodeStart ? now - torp.explodeStart : 0;
+        if (Math.abs(dx) > halfRange || Math.abs(dz) > halfRange || elapsed > EXPLODE_DISPLAY_MS) {
           erefs.group.visible = false;
           continue;
         }
         erefs.group.visible = true;
         erefs.group.position.set(torp.x, 15, torp.y);
 
-        // Static burst via cached ref
-        (erefs.blast.material as THREE.MeshBasicMaterial).opacity = 0.6;
-        erefs.blast.scale.setScalar(2);
+        // Expand and fade
+        const t = elapsed / EXPLODE_DISPLAY_MS;
+        const scale = 2 + t * 3;
+        const alpha = (1 - t) * 0.8;
+        erefs.blast.scale.setScalar(scale);
+        (erefs.blast.material as THREE.MeshBasicMaterial).opacity = alpha;
       } else {
         refs.group.visible = false;
         erefs.group.visible = false;
@@ -381,12 +386,20 @@ export class ProjectileMeshes {
         refs.group.visible = false;
         const dx = plasma.x - playerX;
         const dz = plasma.y - playerZ;
-        if (Math.abs(dx) > halfRange || Math.abs(dz) > halfRange) {
+        const elapsed = plasma.explodeStart ? now - plasma.explodeStart : 0;
+        if (Math.abs(dx) > halfRange || Math.abs(dz) > halfRange || elapsed > EXPLODE_DISPLAY_MS) {
           erefs.group.visible = false;
           continue;
         }
         erefs.group.visible = true;
         erefs.group.position.set(plasma.x, 15, plasma.y);
+
+        // Expand and fade
+        const t = elapsed / EXPLODE_DISPLAY_MS;
+        const scale = 2 + t * 4;
+        const alpha = (1 - t) * 0.8;
+        erefs.blast.scale.setScalar(scale);
+        (erefs.blast.material as THREE.MeshBasicMaterial).opacity = alpha;
       } else {
         refs.group.visible = false;
         erefs.group.visible = false;
@@ -418,14 +431,9 @@ export class ProjectileMeshes {
       const sx = owner.renderX;
       const sz = owner.renderY;
 
-      // Target position
+      // Target position (PHHIT/PHHIT2 use snapshot coords; PHMISS uses direction)
       let tx: number, tz: number;
-      if (phaser.status === PHHIT) {
-        const target = phaser.target >= 0 && phaser.target < MAXPLAYER ? state.players[phaser.target] : null;
-        if (!target) { refs.group.visible = false; continue; }
-        tx = target.renderX;
-        tz = target.renderY;
-      } else if (phaser.status === PHHIT2) {
+      if (phaser.status === PHHIT || phaser.status === PHHIT2) {
         tx = phaser.x;
         tz = phaser.y;
       } else {

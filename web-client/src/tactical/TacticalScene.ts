@@ -42,6 +42,7 @@ const SPEED_ZOOM_FACTOR = 0.54; // 0.65 * (1 + 0.54) ≈ 1.0 → back to full he
 
 // Vapour trail fade opacity (per frame)
 const FADE_OPACITY = 0.12;
+const DEBRIS_COUNT = 60;
 
 export class TacticalScene {
   private scene: THREE.Scene;
@@ -70,9 +71,15 @@ export class TacticalScene {
   // Ship mesh tracking — which team/type each player slot currently has
   private shipMeshKeys: string[] = new Array(MAXPLAYER).fill('');
 
-  // Explosion tracking
-  private explosionMeshes: THREE.Mesh[] = [];
+  // Explosion tracking (multi-stage: core fireball, shockwave ring, debris particles)
+  private explosionCores: THREE.Mesh[] = [];
+  private explosionRings: THREE.Mesh[] = [];
+  private explosionDebris: THREE.Points[] = [];
   private explosionStartTimes: number[] = new Array(MAXPLAYER).fill(0);
+  private explosionPos = new Float32Array(MAXPLAYER * 2);
+  private debrisBasePos: Float32Array[] = [];
+  private debrisVelocity: Float32Array[] = [];
+  private debrisDelay: Float32Array[] = [];
 
   // Outfit showcase state
   private outfitMode = false;
@@ -180,19 +187,60 @@ export class TacticalScene {
     );
     this.outfitComposer.addPass(outfitBloomPass);
 
-    // Pre-allocate explosion meshes
+    // Pre-allocate explosion meshes (core fireball, shockwave ring, debris particles)
     for (let i = 0; i < MAXPLAYER; i++) {
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0xff8800,
+      // Core fireball sphere
+      const coreMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
         transparent: true,
         opacity: 0,
         blending: THREE.AdditiveBlending,
+        depthWrite: false,
       });
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(200, 12, 8), mat);
-      mesh.visible = false;
-      mesh.position.y = 10;
-      this.scene.add(mesh);
-      this.explosionMeshes.push(mesh);
+      const core = new THREE.Mesh(new THREE.SphereGeometry(200, 16, 12), coreMat);
+      core.visible = false;
+      core.position.y = 10;
+      this.scene.add(core);
+      this.explosionCores.push(core);
+
+      // Shockwave ring
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0x88bbff,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const ring = new THREE.Mesh(new THREE.RingGeometry(100, 300, 32), ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.visible = false;
+      ring.position.y = 10;
+      this.scene.add(ring);
+      this.explosionRings.push(ring);
+
+      // Debris particles
+      const debrisGeo = new THREE.BufferGeometry();
+      const positions = new Float32Array(DEBRIS_COUNT * 3);
+      debrisGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const debrisMat = new THREE.PointsMaterial({
+        color: 0xffaa44,
+        size: 40,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        sizeAttenuation: true,
+      });
+      const debris = new THREE.Points(debrisGeo, debrisMat);
+      debris.visible = false;
+      this.scene.add(debris);
+      this.explosionDebris.push(debris);
+
+      // Pre-allocate debris data arrays
+      this.debrisBasePos.push(new Float32Array(DEBRIS_COUNT * 3));
+      this.debrisVelocity.push(new Float32Array(DEBRIS_COUNT * 3));
+      this.debrisDelay.push(new Float32Array(DEBRIS_COUNT));
     }
   }
 
@@ -417,32 +465,134 @@ export class TacticalScene {
 
   private updateExplosions(state: GameState) {
     const now = Date.now();
-    const EXPLOSION_DURATION = 500;
+    const DURATION = 1200;
 
     for (let i = 0; i < MAXPLAYER; i++) {
       const player = state.players[i];
-      const mesh = this.explosionMeshes[i];
+      const core = this.explosionCores[i];
+      const ring = this.explosionRings[i];
+      const debris = this.explosionDebris[i];
 
-      if (player.status === PEXPLODE) {
-        if (!this.explosionStartTimes[i]) {
-          this.explosionStartTimes[i] = player.explodeStart || now;
-        }
-
-        mesh.visible = true;
-        mesh.position.set(player.x, 10, player.y);
-
-        const elapsed = now - this.explosionStartTimes[i];
-        const t = Math.min(1, Math.max(0, elapsed / EXPLOSION_DURATION));
-
-        // Expand and fade
-        const scale = 1 + t * 4;
-        mesh.scale.setScalar(scale);
-        (mesh.material as THREE.MeshBasicMaterial).opacity = (1 - t) * 0.8;
-        (mesh.material as THREE.MeshBasicMaterial).color.setRGB(1, 0.5 * (1 - t), 0);
-      } else {
-        mesh.visible = false;
-        this.explosionStartTimes[i] = 0;
+      // Start explosion on PEXPLODE transition
+      if (player.status === PEXPLODE && !this.explosionStartTimes[i]) {
+        this.explosionStartTimes[i] = player.explodeStart || now;
+        this.explosionPos[i * 2] = player.x;
+        this.explosionPos[i * 2 + 1] = player.y;
+        this.seedDebris(i, player.x, player.y);
       }
+
+      const startTime = this.explosionStartTimes[i];
+      if (!startTime) {
+        core.visible = false;
+        ring.visible = false;
+        debris.visible = false;
+        continue;
+      }
+
+      const elapsed = now - startTime;
+      if (elapsed >= DURATION) {
+        core.visible = false;
+        ring.visible = false;
+        debris.visible = false;
+        this.explosionStartTimes[i] = 0;
+        continue;
+      }
+
+      const px = this.explosionPos[i * 2];
+      const pz = this.explosionPos[i * 2 + 1];
+
+      // Phase 1: Core fireball (0–400ms)
+      if (elapsed < 400) {
+        core.visible = true;
+        core.position.set(px, 10, pz);
+        const mat = core.material as THREE.MeshBasicMaterial;
+        if (elapsed < 100) {
+          // Flash pulse: scale 1→3, white→yellow
+          const ft = elapsed / 100;
+          core.scale.setScalar(1 + ft * 2);
+          mat.opacity = 1.0;
+          mat.color.setRGB(1, 1, 1 - ft);
+        } else {
+          // Fireball expansion: scale 3→8, yellow→orange→dark red, fade
+          const ft = (elapsed - 100) / 300;
+          core.scale.setScalar(3 + ft * 5);
+          mat.opacity = (1 - ft) * 0.8;
+          mat.color.setRGB(1, 0.5 * (1 - ft), 0);
+        }
+      } else {
+        core.visible = false;
+      }
+
+      // Phase 2: Shockwave ring (50–800ms)
+      if (elapsed >= 50 && elapsed < 800) {
+        ring.visible = true;
+        ring.position.set(px, 10, pz);
+        const rt = (elapsed - 50) / 750;
+        ring.scale.setScalar(0.5 + rt * 14.5);
+        const ringMat = ring.material as THREE.MeshBasicMaterial;
+        ringMat.opacity = rt < 0.2 ? rt * 3 : 0.6 * (1 - (rt - 0.2) / 0.8);
+      } else {
+        ring.visible = false;
+      }
+
+      // Phase 3: Debris particles (0–1200ms)
+      debris.visible = true;
+      const posAttr = debris.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const positions = posAttr.array as Float32Array;
+      const basePos = this.debrisBasePos[i];
+      const velocity = this.debrisVelocity[i];
+      const delays = this.debrisDelay[i];
+      const debrisMat = debris.material as THREE.PointsMaterial;
+
+      for (let j = 0; j < DEBRIS_COUNT; j++) {
+        const delay = delays[j] * 1000;
+        const pt = Math.max(0, elapsed - delay) / 1000;
+        const j3 = j * 3;
+        positions[j3]     = basePos[j3]     + velocity[j3]     * pt;
+        positions[j3 + 1] = basePos[j3 + 1] + velocity[j3 + 1] * pt;
+        positions[j3 + 2] = basePos[j3 + 2] + velocity[j3 + 2] * pt;
+      }
+      posAttr.needsUpdate = true;
+
+      // Color: white → orange → red over lifetime
+      const ct = elapsed / DURATION;
+      if (ct < 0.3) {
+        debrisMat.color.setRGB(1, 1, 1 - ct * 3.33);
+      } else if (ct < 0.6) {
+        debrisMat.color.setRGB(1, 1 - (ct - 0.3) / 0.3 * 0.5, 0);
+      } else {
+        const cr = (ct - 0.6) / 0.4;
+        debrisMat.color.setRGB(1 - cr * 0.5, 0.5 * (1 - cr), 0);
+      }
+
+      // Fade out over last 400ms
+      const fadeStart = DURATION - 400;
+      debrisMat.opacity = elapsed > fadeStart
+        ? 0.8 * (1 - (elapsed - fadeStart) / 400)
+        : 0.8;
+    }
+  }
+
+  private seedDebris(slot: number, x: number, y: number) {
+    const basePos = this.debrisBasePos[slot];
+    const velocity = this.debrisVelocity[slot];
+    const delays = this.debrisDelay[slot];
+
+    for (let j = 0; j < DEBRIS_COUNT; j++) {
+      const angle = Math.random() * Math.PI * 2;
+      const elev = (Math.random() - 0.3) * Math.PI * 0.5;
+      const speed = 500 + Math.random() * 1500;
+      const j3 = j * 3;
+
+      basePos[j3]     = x + (Math.random() - 0.5) * 50;
+      basePos[j3 + 1] = 10 + Math.random() * 30;
+      basePos[j3 + 2] = y + (Math.random() - 0.5) * 50;
+
+      velocity[j3]     = Math.cos(angle) * Math.cos(elev) * speed;
+      velocity[j3 + 1] = Math.sin(elev) * speed * 0.3;
+      velocity[j3 + 2] = Math.sin(angle) * Math.cos(elev) * speed;
+
+      delays[j] = Math.random() * 0.15;
     }
   }
 }
