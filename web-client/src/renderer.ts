@@ -962,7 +962,7 @@ export class Renderer {
 
     const weaponKeys = [
       ['w / Right click', 'Fire torpedo'],
-      ['e / Mid click', 'Fire phaser'],
+      ['e / Mid click', 'Fire phaser (e=auto-aim)'],
       ['t', 'Fire plasma'],
       ['d', 'Det enemy torps'],
     ];

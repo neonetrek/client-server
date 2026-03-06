@@ -14,7 +14,7 @@ import {
   FED, ROM, KLI, ORI,
   SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, STARBASE, SGALAXY,
   MALL, MTEAM, MINDIV,
-  SHIP_STATS, PALIVE, TRACTDIST, MAXPLAYER, TWIDTH,
+  SHIP_STATS, PALIVE, TRACTDIST, PHASEDIST, MAXPLAYER, TWIDTH,
 } from './constants';
 
 export class InputHandler {
@@ -324,9 +324,9 @@ export class InputHandler {
         this.net.sendTorp(me.dir);
         break;
 
-      // Phaser (keyboard alternative to middle-click)
+      // Phaser — auto-target nearest enemy within phaser range
       case 'e':
-        this.net.sendPhaser(me.dir);
+        this.net.sendPhaser(this.directionToNearestEnemy() ?? me.dir);
         break;
 
       // Plasma torpedo
@@ -586,6 +586,43 @@ export class InputHandler {
       this.cursorGY = pos.gy;
       this.lastMouseMoveTime = Date.now();
     }
+  }
+
+  /**
+   * Find the nearest enemy within phaser range and return the netrek
+   * direction (0-255) toward them, or null if no target found.
+   */
+  private directionToNearestEnemy(): number | null {
+    const s = this.state;
+    const me = s.players[s.myNumber];
+    if (!me) return null;
+
+    let bestNum = -1;
+    let bestDist = Infinity;
+
+    for (let i = 0; i < MAXPLAYER; i++) {
+      if (i === me.number) continue;
+      const p = s.players[i];
+      if (p.status !== PALIVE) continue;
+      if (p.flags & PFCLOAK) continue;
+
+      const dx = p.x - me.x;
+      const dy = p.y - me.y;
+      const dist = dx * dx + dy * dy;
+      if (dist > PHASEDIST * PHASEDIST) continue;
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestNum = i;
+      }
+    }
+
+    if (bestNum < 0) return null;
+    const target = s.players[bestNum];
+    const dx = target.x - me.x;
+    const dy = target.y - me.y;
+    // Same conversion as mouse click: atan2(dy, dx) + PI/2 → netrek dir
+    const angle = Math.atan2(dy, dx);
+    return Math.round(((angle + Math.PI / 2) / (Math.PI * 2)) * 256 + 256) & 0xFF;
   }
 
   /**

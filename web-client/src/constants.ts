@@ -96,6 +96,8 @@ export const PFPRESS    = 0x800000;
 
 // Tractor/pressor beam range (galactic units)
 export const TRACTDIST  = 6000;
+// Phaser range (galactic units) — same as server's PHASEDIST
+export const PHASEDIST  = 6000;
 export const PFDOCKOK   = 0x1000000;
 export const PFSEEN     = 0x2000000;
 export const PFOBSERV   = 0x8000000;
