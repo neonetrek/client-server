@@ -1223,10 +1223,10 @@ static void udplayers_palive_move_in_space(struct player *j)
         }
 
         if (j->p_desspeed > j->p_speed) {
-                j->p_subspeed += j->p_ship.s_accint;
+                j->p_subspeed += (int)(j->p_ship.s_accint * accel_mult);
         }
         if (j->p_desspeed < j->p_speed)
-                j->p_subspeed -= j->p_ship.s_decint;
+                j->p_subspeed -= (int)(j->p_ship.s_decint * decel_mult);
 
         if (j->p_subspeed / 1000) {
                 j->p_speed += j->p_subspeed / 1000;
@@ -1860,9 +1860,9 @@ static void changedir(struct player *sp)
     else {
         /* todo: fps support */
         if (newturn)
-            sp->p_subdir += sp->p_ship.s_turns/(speed*speed);
+            sp->p_subdir += (int)(sp->p_ship.s_turns * turn_mult)/(speed*speed);
         else
-            sp->p_subdir += sp->p_ship.s_turns/((sp->p_speed<30)?(1<<sp->p_speed):1000000000);
+            sp->p_subdir += (int)(sp->p_ship.s_turns * turn_mult)/((sp->p_speed<30)?(1<<sp->p_speed):1000000000);
 
         ticks = sp->p_subdir / 1000;
         if (ticks) {

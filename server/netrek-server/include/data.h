@@ -448,4 +448,8 @@ extern int inl_robot;
 extern int newbie_robot;
 extern int pret_robot;
 
+extern float accel_mult;
+extern float decel_mult;
+extern float turn_mult;
+
 #endif /* _h_data */

@@ -520,3 +520,7 @@ int puck_robot = 0;
 int inl_robot = 0;
 int newbie_robot = 0;
 int pret_robot = 0;
+
+float accel_mult = 1.0;
+float decel_mult = 1.0;
+float turn_mult = 1.0;

@@ -191,6 +191,12 @@ struct sysdef_keywords {
   { "PRET_SAVE_ARMIES",	SYSDEF_INT,	&pret_save_armies,
     "Number of seconds the saved t-mode galaxy is eligible to be restored" },
 #endif
+  { "ACCEL_MULT",	SYSDEF_FLOAT,	&accel_mult,
+    "Multiplier on ship acceleration (default 1.0)" },
+  { "DECEL_MULT",	SYSDEF_FLOAT,	&decel_mult,
+    "Multiplier on ship deceleration (default 1.0)" },
+  { "TURN_MULT",	SYSDEF_FLOAT,	&turn_mult,
+    "Multiplier on ship turn rate (default 1.0)" },
 #if defined(BASEPRACTICE) || defined(NEWBIESERVER)  || defined(PRETSERVER)
   { "ROBOTHOST",	SYSDEF_CHAR,	robot_host,
     "Robot host" },

@@ -940,7 +940,9 @@ export class Renderer {
 
     const movementKeys = [
       ['\u2190/\u2192', 'Turn left/right (hold)'],
-      ['\u2191/\u2193', 'Speed up/down'],
+      ['\u2191/\u2193', 'Speed up/down (hold)'],
+      ['Space', 'Max speed'],
+      ['Backspace', 'Emergency stop'],
       ['0-9', 'Set speed directly'],
       ['!/@/#', 'Speed 10/11/12'],
       ['Left click', 'Set course'],

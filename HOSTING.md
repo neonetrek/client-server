@@ -142,6 +142,7 @@ Common game rule settings for each instance:
 | Key | Description |
 |-----|-------------|
 | `PRET` | Pre-T mode: bots fill empty team slots (0 = off, 1 = on) |
+| `PRET_DIFFICULTY` | Bot skill level 0-9 (0 = expert, 6 = easy, 9 = beginner) |
 | `PRET_GUEST` | Allow guest logins without a password |
 | `PRET_PLANETS` | Planets lead needed to win in pre-T |
 | `PRET_SAVE_GALAXY` | Preserve galaxy across T-mode transitions |
@@ -149,6 +150,9 @@ Common game rule settings for each instance:
 | `PRET_SAVE_ARMIES` | Preserve armies across transitions |
 | `NEWBIE` | Newbie server mode (simplified rules) |
 | `DOGFIGHT` | Dogfight mode (small teams, no planets) |
+| `ACCEL_MULT` | Ship acceleration multiplier (default 1.0, try 2.0 for snappier) |
+| `DECEL_MULT` | Ship deceleration multiplier (default 1.0) |
+| `TURN_MULT` | Ship turn rate multiplier (default 1.0, try 2.5 for fast turns) |
 | `FPS` | Server frames per second |
 | `DEFUPS` | Default updates per second to clients |
 | `MAXUPS` | Maximum updates per second |

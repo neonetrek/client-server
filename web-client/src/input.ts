@@ -109,7 +109,7 @@ export class InputHandler {
     const down = this.keysDown.has('ArrowDown');
     if (up || down) {
       const now = Date.now();
-      if (now - this.lastSpeedTickTime >= 200) {
+      if (now - this.lastSpeedTickTime >= 100) {
         this.lastSpeedTickTime = now;
         const maxSpeed = SHIP_STATS[me.shipType]?.speed ?? 12;
         const base = this.state.desiredSpeed >= 0 ? this.state.desiredSpeed : me.speed;
@@ -424,6 +424,23 @@ export class InputHandler {
         this.state.warningTime = Date.now();
         break;
       }
+
+      // === SPEED SHORTCUTS ===
+
+      // Max speed
+      case ' ': {
+        const maxSpeed = SHIP_STATS[me.shipType]?.speed ?? 12;
+        this.state.desiredSpeed = maxSpeed;
+        this.net.sendSpeed(maxSpeed);
+        break;
+      }
+
+      // Emergency stop
+      case 'Backspace':
+        this.state.desiredSpeed = 0;
+        this.net.sendSpeed(0);
+        e.preventDefault();
+        break;
 
       // Planet lock (lock onto nearest planet)
       case 'l':
