@@ -90,6 +90,14 @@ if [ -f "$CONFIG_FILE" ]; then
         cp -r "$NETREK_DIR/etc/og" "$STATE_DIR/og"
       fi
 
+      # Write bot difficulty into og command file (hm N sets _state.human in robotd)
+      # PRET_DIFFICULTY: 0=expert, 3=medium, 6=easy, 9=beginner (default 0)
+      PRET_DIFF=$(_jq '.sysdef.PRET_DIFFICULTY // 0')
+      if [ "$PRET_DIFF" -gt 0 ] 2>/dev/null; then
+        echo "hm $PRET_DIFF" >> "$STATE_DIR/og/og"
+        echo "[entrypoint] Bot difficulty for '$id': hm $PRET_DIFF"
+      fi
+
       # Generate ports file for this instance's newstartd
       cat > "$STATE_DIR/ports" <<PORTS
 # Auto-generated ports file for instance '$id'

@@ -39,6 +39,7 @@
       "features": ["bots", "practice", "beginner"],
       "sysdef": {
         "PRET": 1,
+        "PRET_DIFFICULTY": 6,
         "PRET_GUEST": 1,
         "PRET_PLANETS": 3,
         "PRET_SAVE_GALAXY": 1,
