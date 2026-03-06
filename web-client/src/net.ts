@@ -260,13 +260,8 @@ export class NetrekConnection {
   private handlePacket(name: string, view: DataView) {
     const s = this.state;
 
-    // Log non-MOTD, non-PL_LOGIN, non-PLAYER packets for debugging
-    if (name !== 'MOTD' && name !== 'PL_LOGIN' && name !== 'PLAYER' && 
-        name !== 'PLAYER_INFO' && name !== 'KILLS' && name !== 'FLAGS' &&
-        name !== 'HOSTILE' && name !== 'PLANET' && name !== 'PLANET_LOC' &&
-        name !== 'STATS') {
-      console.log(`[net] Packet: ${name}`);
-    }
+    // Packet logging disabled — enable for debugging:
+    // console.log(`[net] Packet: ${name}`);
 
     switch (name) {
       case 'MOTD': {
@@ -315,8 +310,30 @@ export class NetrekConnection {
         const p = s.players[pnum];
         p.dir = f[2] as number;
         p.speed = f[3] as number;
-        p.x = f[4] as number;
-        p.y = f[5] as number;
+        const newX = f[4] as number;
+        const newY = f[5] as number;
+
+        // Compute interpolation velocity from position delta
+        const now = performance.now();
+        const dt = (now - p.lastUpdateTime) / 1000;
+        if (p.lastUpdateTime > 0 && dt > 0.005 && dt < 0.5) {
+          const dx = newX - p.x;
+          const dy = newY - p.y;
+          if (dx * dx + dy * dy < 25000000) {
+            p.interpVx = dx / dt;
+            p.interpVy = dy / dt;
+          } else {
+            p.interpVx = 0;
+            p.interpVy = 0;
+          }
+        } else {
+          p.interpVx = 0;
+          p.interpVy = 0;
+        }
+        p.x = newX;
+        p.y = newY;
+        p.lastUpdateTime = now;
+
         // Clear desired direction once server confirms turn complete
         if (pnum === s.myNumber && s.desiredDir >= 0 && p.dir === s.desiredDir) {
           s.desiredDir = -1;
@@ -520,14 +537,14 @@ export class NetrekConnection {
       case 'MASK': {
         const f = unpack(SP.MASK.format, view);
         s.teamMask = f[1] as number;
-        console.log(`[net] SP_MASK teamMask=${s.teamMask} (0x${s.teamMask.toString(16)})`);
+        // console.log(`[net] SP_MASK teamMask=${s.teamMask}`);
         break;
       }
 
       case 'PICKOK': {
         const f = unpack(SP.PICKOK.format, view);
         const ok = f[1] as number;
-        console.log(`[net] SP_PICKOK ok=${ok} phase=${s.phase} myTeam=${s.myTeam} teamMask=0x${s.teamMask.toString(16)}`);
+        // console.log(`[net] SP_PICKOK ok=${ok}`);
         if (ok) {
           s.phase = 'alive';
         } else {
@@ -584,7 +601,7 @@ export class NetrekConnection {
 
       case 'FEATURE': {
         const f = unpack(SP.FEATURE.format, view);
-        console.log('[net] Feature:', f[5]);
+        // console.log('[net] Feature:', f[5]);
         break;
       }
 
@@ -626,7 +643,7 @@ export class NetrekConnection {
   sendOutfit(team: number, ship: number) {
     // Server expects team INDEX (0=FED,1=ROM,2=KLI,3=ORI), not bitmask
     const teamIndex = Math.log2(team) | 0;
-    console.log(`[net] sendOutfit team=${team} (idx=${teamIndex}) ship=${ship} phase=${this.state.phase} myStatus=${this.state.players[this.state.myNumber]?.status}`);
+    // console.log(`[net] sendOutfit team=${team} ship=${ship}`);
     this.send(pack(CP.OUTFIT.format, CP.OUTFIT.code, teamIndex, ship));
   }
 

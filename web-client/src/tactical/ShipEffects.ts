@@ -515,15 +515,15 @@ export class ShipEffects {
       }
 
       // Range check
-      const dx = player.x - playerX;
-      const dz = player.y - playerZ;
+      const dx = player.renderX - playerX;
+      const dz = player.renderY - playerZ;
       if (Math.abs(dx) > halfRange || Math.abs(dz) > halfRange) {
         state.group.visible = false;
         continue;
       }
 
       state.group.visible = true;
-      state.group.position.set(player.x, 10, player.y);
+      state.group.position.set(player.renderX, 10, player.renderY);
 
       // Rotation: game dir 0-255 → radians. Dir 0 = north (-Z in Three.js)
       // Ship models point toward -Z by default, so rotation.y = angle from north CW

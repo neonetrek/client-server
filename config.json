@@ -51,6 +51,32 @@
         "RESETGALAXY": 1,
         "SELF_RESET": 1
       }
+    },
+    {
+      "id": "arena",
+      "name": "Arena",
+      "description": "Responsive handling with medium-difficulty bots",
+      "port": 2594,
+      "features": ["bots", "responsive", "medium"],
+      "sysdef": {
+        "PRET": 1,
+        "PRET_DIFFICULTY": 9,
+        "PRET_GUEST": 1,
+        "PRET_PLANETS": 3,
+        "PRET_SAVE_GALAXY": 1,
+        "PRET_GALAXY_LIFETIME": 600,
+        "PRET_SAVE_ARMIES": 1,
+        "ACCEL_MULT": 1.5,
+        "DECEL_MULT": 1.5,
+        "TURN_MULT": 1.5,
+        "TOURN": 1,
+        "FPS": 50,
+        "DEFUPS": 25,
+        "MAXUPS": 50,
+        "RESETGALAXY": 1,
+        "SELF_RESET": 1,
+        "MIN_CARRY_KILLS": 0
+      }
     }
   ]
 }

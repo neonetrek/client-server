@@ -5,7 +5,7 @@
  * Updated by incoming server packets.
  */
 
-import { MAXPLAYER, MAXPLANETS, MAXTORP, PFREE, TFREE, PTFREE, PHFREE } from './constants';
+import { MAXPLAYER, MAXPLANETS, MAXTORP, PFREE, TFREE, PTFREE, PHFREE, PALIVE } from './constants';
 
 export interface Player {
   number: number;
@@ -34,6 +34,11 @@ export interface Player {
   lastShield: number;   // previous shield value for hit detection
   prevDir: number;      // previous direction for banking
   hullHitTime: number;  // timestamp when hull damage was last detected
+  renderX: number;      // interpolated X for rendering
+  renderY: number;      // interpolated Y for rendering
+  interpVx: number;     // estimated X velocity (game units/sec)
+  interpVy: number;     // estimated Y velocity (game units/sec)
+  lastUpdateTime: number; // performance.now() of last SP_PLAYER
 }
 
 export interface Torpedo {
@@ -149,6 +154,7 @@ function createPlayer(num: number): Player {
     hostile: 0, war: 0, armies: 0,
     fuel: 0, shield: 0, hull: 0, wTemp: 0, eTemp: 0, explodeStart: 0,
     tractTarget: -1, lastShield: 0, prevDir: 0, hullHitTime: 0,
+    renderX: 0, renderY: 0, interpVx: 0, interpVy: 0, lastUpdateTime: 0,
   };
 }
 
@@ -213,4 +219,20 @@ export function createGameState(): GameState {
     armies: [0, 0, 0, 0],
     planets_owned: [0, 0, 0, 0],
   };
+}
+
+/** Extrapolate renderX/renderY forward using estimated velocity between server updates. */
+export function interpolatePositions(players: Player[]) {
+  const now = performance.now();
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    if (p.status === PALIVE && p.speed > 0 && p.lastUpdateTime > 0) {
+      const dt = Math.min((now - p.lastUpdateTime) / 1000, 0.08);
+      p.renderX = p.x + p.interpVx * dt;
+      p.renderY = p.y + p.interpVy * dt;
+    } else {
+      p.renderX = p.x;
+      p.renderY = p.y;
+    }
+  }
 }

@@ -588,8 +588,8 @@ export class InputHandler {
     if (!me) return null;
     const size = this.renderer.canvasSize;
     const scale = size / TWIDTH;
-    const gx = me.x + (mx - size / 2) / scale;
-    const gy = me.y + (my - size / 2) / scale;
+    const gx = me.renderX + (mx - size / 2) / scale;
+    const gy = me.renderY + (my - size / 2) / scale;
     return { gx, gy };
   }
 
@@ -623,8 +623,8 @@ export class InputHandler {
       if (p.status !== PALIVE) continue;
       if (p.flags & PFCLOAK) continue;
 
-      const dx = p.x - me.x;
-      const dy = p.y - me.y;
+      const dx = p.renderX - me.renderX;
+      const dy = p.renderY - me.renderY;
       const dist = dx * dx + dy * dy;
       if (dist > PHASEDIST * PHASEDIST) continue;
       if (dist < bestDist) {
@@ -635,8 +635,8 @@ export class InputHandler {
 
     if (bestNum < 0) return null;
     const target = s.players[bestNum];
-    const dx = target.x - me.x;
-    const dy = target.y - me.y;
+    const dx = target.renderX - me.renderX;
+    const dy = target.renderY - me.renderY;
     // Same conversion as mouse click: atan2(dy, dx) + PI/2 → netrek dir
     const angle = Math.atan2(dy, dx);
     return Math.round(((angle + Math.PI / 2) / (Math.PI * 2)) * 256 + 256) & 0xFF;
@@ -671,14 +671,14 @@ export class InputHandler {
       if (p.status !== PALIVE) continue;
       if (p.flags & PFCLOAK) continue; // can't target cloaked
 
-      const dx = p.x - me.x;
-      const dy = p.y - me.y;
+      const dx = p.renderX - me.renderX;
+      const dy = p.renderY - me.renderY;
       const distFromMe = Math.sqrt(dx * dx + dy * dy);
       if (distFromMe > maxRange) continue;
 
       if (useCursor) {
-        const cdx = p.x - refX;
-        const cdy = p.y - refY;
+        const cdx = p.renderX - refX;
+        const cdy = p.renderY - refY;
         const distFromCursor = Math.sqrt(cdx * cdx + cdy * cdy);
         if (distFromCursor < bestDist) {
           bestDist = distFromCursor;

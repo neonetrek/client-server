@@ -6,7 +6,7 @@
  * status bar, player list, and message panel.
  */
 
-import { createGameState } from './state';
+import { createGameState, interpolatePositions } from './state';
 import { NetrekConnection } from './net';
 import { Renderer } from './renderer';
 import { InputHandler } from './input';
@@ -103,6 +103,7 @@ if (showFps) {
 
 // Render loop
 function gameLoop() {
+  interpolatePositions(state.players);
   if (needsRender) {
     renderer.helpVisible = input.isHelpVisible;
     renderer.render();

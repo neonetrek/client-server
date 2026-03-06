@@ -229,8 +229,8 @@ export class TacticalScene {
     }
 
     // Player position in Three.js coords: game (x, y) → Three.js (x, 0, y)
-    const playerX = me.x;
-    const playerZ = me.y;
+    const playerX = me.renderX;
+    const playerZ = me.renderY;
 
     // Speed-based camera height
     const speed = me.status === PALIVE ? me.speed : 0;

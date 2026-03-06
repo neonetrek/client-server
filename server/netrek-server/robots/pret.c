@@ -672,6 +672,12 @@ static void
 start_a_robot(char *team)
 {
     int pid;
+    char comfile[256];
+    const char *sc = getenv("SYSCONFDIR");
+    if (sc)
+        snprintf(comfile, sizeof(comfile), "%s/og/og", sc);
+    else
+        snprintf(comfile, sizeof(comfile), "%s", COMFILE);
 
     pid = fork();
     if (pid == -1) return;
@@ -684,7 +690,7 @@ start_a_robot(char *team)
               "-n", namearg(),
               "-X", PRE_T_ROBOT_LOGIN,
               "-b", "-O", "-I", "-g",
-              "-C", COMFILE, (char *) NULL);
+              "-C", comfile, (char *) NULL);
         perror("pretbot'execl");
         _exit(1);
     }

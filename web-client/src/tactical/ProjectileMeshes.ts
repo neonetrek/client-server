@@ -415,16 +415,16 @@ export class ProjectileMeshes {
       }
 
       // Source position
-      const sx = owner.x;
-      const sz = owner.y;
+      const sx = owner.renderX;
+      const sz = owner.renderY;
 
       // Target position
       let tx: number, tz: number;
       if (phaser.status === PHHIT) {
         const target = phaser.target >= 0 && phaser.target < MAXPLAYER ? state.players[phaser.target] : null;
         if (!target) { refs.group.visible = false; continue; }
-        tx = target.x;
-        tz = target.y;
+        tx = target.renderX;
+        tz = target.renderY;
       } else if (phaser.status === PHHIT2) {
         tx = phaser.x;
         tz = phaser.y;
@@ -481,10 +481,10 @@ export class ProjectileMeshes {
       const refs = this.tractorRefs[tractorIdx++];
       refs.group.visible = true;
 
-      const sx = player.x;
-      const sz = player.y;
-      const tx = tp.x;
-      const tz = tp.y;
+      const sx = player.renderX;
+      const sz = player.renderY;
+      const tx = tp.renderX;
+      const tz = tp.renderY;
       const dx = tx - sx;
       const dz = tz - sz;
       const length = Math.sqrt(dx * dx + dz * dz);
@@ -531,10 +531,10 @@ export class ProjectileMeshes {
           const refs = this.tractorRefs[tractorIdx++];
           refs.group.visible = true;
 
-          const sx = src.x;
-          const sz = src.y;
-          const tx = tgt.x;
-          const tz = tgt.y;
+          const sx = src.renderX;
+          const sz = src.renderY;
+          const tx = tgt.renderX;
+          const tz = tgt.renderY;
           const dx = tx - sx;
           const dz = tz - sz;
           const dist = Math.sqrt(dx * dx + dz * dz);
