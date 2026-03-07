@@ -182,12 +182,6 @@ export class InputHandler {
       return;
     }
 
-    // Dismiss help on any other key
-    if (this.showHelp) {
-      this.showHelp = false;
-      return;
-    }
-
     // Chat mode intercepts all keys
     if (this.chatMode) {
       this.handleChatInput(e);

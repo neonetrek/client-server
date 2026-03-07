@@ -188,7 +188,7 @@ export class Renderer {
       this.galOverlayCtx.clearRect(0, 0, this._galCanvasSize, this._galCanvasSize);
 
       this.updateStatusBar();
-      if (this._showHelp) this.renderHelp(oCtx, w, h);
+      if (this._showHelp) this.renderHelp(this.galOverlayCtx, this._galCanvasSize, this._galCanvasSize);
       this.isTacticalMode = false;
       return;
     }
@@ -207,7 +207,7 @@ export class Renderer {
       this.updateStatusBar();
       this.updatePlayerList();
       this.updateMessages();
-      if (this._showHelp) this.renderHelp(oCtx, w, h);
+      if (this._showHelp) this.renderHelp(this.galOverlayCtx, this._galCanvasSize, this._galCanvasSize);
       return;
     }
 
@@ -253,7 +253,7 @@ export class Renderer {
     this.updatePlayerList();
     this.updateMessages();
 
-    if (this._showHelp) this.renderHelp(oCtx, w, h);
+    if (this._showHelp) this.renderHelp(this.galOverlayCtx, this._galCanvasSize, this._galCanvasSize);
   }
 
   // ============================================================
@@ -927,28 +927,28 @@ export class Renderer {
     ctx.textAlign = 'center';
 
     ctx.fillStyle = '#0f0';
-    ctx.font = 'bold 18px monospace';
-    ctx.fillText('KEYBOARD COMMANDS', w / 2, 32);
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText('KEYBOARD COMMANDS', w / 2, 24);
 
     ctx.font = '10px monospace';
     ctx.fillStyle = '#666';
-    ctx.fillText('Press ? to toggle  |  Press any key to dismiss', w / 2, 48);
+    ctx.fillText('Press ? to dismiss', w / 2, 38);
 
-    const col1x = w * 0.15;
-    const col2x = w * 0.58;
-    const lineH = 16;
+    const col1x = w * 0.05;
+    const col2x = w * 0.52;
+    const lineH = 14;
     let y: number;
 
     ctx.textAlign = 'left';
-    ctx.font = '11px monospace';
+    ctx.font = '10px monospace';
 
     // Column 1: Movement & Combat
-    y = 72;
+    y = 56;
     ctx.fillStyle = '#0cf';
-    ctx.font = 'bold 12px monospace';
+    ctx.font = 'bold 11px monospace';
     ctx.fillText('MOVEMENT', col1x, y);
     y += lineH + 2;
-    ctx.font = '11px monospace';
+    ctx.font = '10px monospace';
 
     const movementKeys = [
       ['\u2190/\u2192', 'Turn left/right (hold)'],
@@ -963,16 +963,16 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col1x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col1x + 120, y);
+      ctx.fillText(desc, col1x + 90, y);
       y += lineH;
     }
 
-    y += 8;
+    y += 6;
     ctx.fillStyle = '#0cf';
-    ctx.font = 'bold 12px monospace';
+    ctx.font = 'bold 11px monospace';
     ctx.fillText('WEAPONS', col1x, y);
     y += lineH + 2;
-    ctx.font = '11px monospace';
+    ctx.font = '10px monospace';
 
     const weaponKeys = [
       ['w / Right click', 'Fire torpedo'],
@@ -984,16 +984,16 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col1x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col1x + 120, y);
+      ctx.fillText(desc, col1x + 90, y);
       y += lineH;
     }
 
-    y += 8;
+    y += 6;
     ctx.fillStyle = '#0cf';
-    ctx.font = 'bold 12px monospace';
+    ctx.font = 'bold 11px monospace';
     ctx.fillText('DEFENSE', col1x, y);
     y += lineH + 2;
-    ctx.font = '11px monospace';
+    ctx.font = '10px monospace';
 
     const defenseKeys = [
       ['s', 'Toggle shields'],
@@ -1004,16 +1004,16 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col1x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col1x + 120, y);
+      ctx.fillText(desc, col1x + 90, y);
       y += lineH;
     }
 
-    y += 8;
+    y += 6;
     ctx.fillStyle = '#0cf';
-    ctx.font = 'bold 12px monospace';
+    ctx.font = 'bold 11px monospace';
     ctx.fillText('TRACTOR / REPRESSOR', col1x, y);
     y += lineH + 2;
-    ctx.font = '11px monospace';
+    ctx.font = '10px monospace';
 
     const tractorKeys = [
       ['q', 'Tractor beam (lock nearest)'],
@@ -1023,17 +1023,17 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col1x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col1x + 120, y);
+      ctx.fillText(desc, col1x + 90, y);
       y += lineH;
     }
 
     // Column 2
-    y = 72;
+    y = 56;
     ctx.fillStyle = '#0cf';
-    ctx.font = 'bold 12px monospace';
+    ctx.font = 'bold 11px monospace';
     ctx.fillText('PLANET OPS', col2x, y);
     y += lineH + 2;
-    ctx.font = '11px monospace';
+    ctx.font = '10px monospace';
 
     const planetKeys = [
       ['c', 'Toggle orbit'],
@@ -1045,16 +1045,16 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col2x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col2x + 100, y);
+      ctx.fillText(desc, col2x + 80, y);
       y += lineH;
     }
 
-    y += 8;
+    y += 6;
     ctx.fillStyle = '#0cf';
-    ctx.font = 'bold 12px monospace';
+    ctx.font = 'bold 11px monospace';
     ctx.fillText('COMMUNICATION', col2x, y);
     y += lineH + 2;
-    ctx.font = '11px monospace';
+    ctx.font = '10px monospace';
 
     const chatKeys = [
       [';', 'Chat to ALL'],
@@ -1065,7 +1065,7 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col2x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col2x + 100, y);
+      ctx.fillText(desc, col2x + 80, y);
       y += lineH;
     }
 
@@ -1086,12 +1086,12 @@ export class Renderer {
     }
     ctx.font = '11px monospace';
 
-    y += 8;
+    y += 6;
     ctx.fillStyle = '#0cf';
-    ctx.font = 'bold 12px monospace';
+    ctx.font = 'bold 11px monospace';
     ctx.fillText('VIEW & OTHER', col2x, y);
     y += lineH + 2;
-    ctx.font = '11px monospace';
+    ctx.font = '10px monospace';
 
     const viewKeys = [
       ['W', 'Declare war (all)'],
@@ -1103,16 +1103,16 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col2x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col2x + 100, y);
+      ctx.fillText(desc, col2x + 80, y);
       y += lineH;
     }
 
-    y += 8;
+    y += 6;
     ctx.fillStyle = '#0cf';
-    ctx.font = 'bold 12px monospace';
+    ctx.font = 'bold 11px monospace';
     ctx.fillText('OUTFIT SCREEN', col2x, y);
     y += lineH + 2;
-    ctx.font = '11px monospace';
+    ctx.font = '10px monospace';
 
     const outfitKeys = [
       ['F/R/K/O', 'Select team'],
@@ -1122,7 +1122,7 @@ export class Renderer {
       ctx.fillStyle = '#ff0';
       ctx.fillText(key, col2x, y);
       ctx.fillStyle = '#aaa';
-      ctx.fillText(desc, col2x + 100, y);
+      ctx.fillText(desc, col2x + 80, y);
       y += lineH;
     }
 
