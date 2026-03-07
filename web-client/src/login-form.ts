@@ -30,9 +30,11 @@ export class LoginFormController {
       el.addEventListener('keyup', (e) => e.stopPropagation());
     }
 
-    this.form.addEventListener('submit', (e) => {
-      e.preventDefault();
+    // Let the form submit natively to a hidden iframe (triggers password manager save)
+    // then handle the login via WebSocket
+    this.form.addEventListener('submit', () => {
       this.handleSubmit();
+      // Do NOT preventDefault — native submit to hidden iframe triggers password save
     });
   }
 
@@ -41,7 +43,7 @@ export class LoginFormController {
   }
 
   show() {
-    this.form.style.display = 'flex';
+    this.form.classList.add('login-visible');
     this._visible = true;
     // Defer focus to next frame so the Enter keypress that triggered show()
     // doesn't propagate to the input and auto-submit the form
@@ -55,7 +57,7 @@ export class LoginFormController {
   }
 
   hide() {
-    this.form.style.display = 'none';
+    this.form.classList.remove('login-visible');
     this._visible = false;
   }
 
@@ -78,9 +80,20 @@ export class LoginFormController {
     this.state.warningText = `Logging in as ${name}...`;
     this.state.warningTime = Date.now();
 
+    // Use PasswordCredential API if available to explicitly trigger password save
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const win = window as any;
+    if (password && typeof win.PasswordCredential === 'function') {
+      const Ctor = win.PasswordCredential as new (opts: {
+        id: string; password: string; name: string;
+      }) => Credential;
+      const cred = new Ctor({ id: name, password, name });
+      navigator.credentials.store(cred).catch(() => {});
+    }
+
     this.onSubmit();
 
-    // Brief delay before hiding so password managers can capture the submission
-    setTimeout(() => this.hide(), 100);
+    // Longer delay before hiding so password managers can capture the submission
+    setTimeout(() => this.hide(), 600);
   }
 }

@@ -194,6 +194,16 @@
       padding: 10px 16px;
       border-radius: 2px;
       box-shadow: 0 0 12px rgba(0, 255, 0, 0.15);
+      /* Hidden by default using visibility/opacity for password manager compatibility */
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+    }
+    .login-overlay.login-visible {
+      visibility: visible;
+      opacity: 1;
+      pointer-events: auto;
     }
     .login-label {
       color: #0a0;
@@ -244,7 +254,8 @@
         <canvas id="tactical"></canvas>
         <canvas id="tactical-overlay"></canvas>
         <div id="status">Connecting...</div>
-        <form id="login-form" class="login-overlay" autocomplete="on" style="display: none;">
+        <iframe name="login-sink" id="login-sink" style="display:none;" aria-hidden="true"></iframe>
+        <form id="login-form" class="login-overlay" autocomplete="on" action="" method="post" target="login-sink">
           <label for="login-name" class="login-label">Name:</label>
           <input id="login-name" type="text" name="username" autocomplete="username"
                  maxlength="15" spellcheck="false" placeholder="guest" />

@@ -175,6 +175,8 @@ export class Renderer {
     // Show outfit screen during outfit/dead phases
     if (this.state.phase === 'outfit' || this.state.phase === 'dead') {
       this.audio?.stopEngine();
+      // Clean up login scene if transitioning from login
+      this.tacticalScene.cleanupLogin();
       // 3D outfit showcase — all 6 ship classes
       this.tacticalScene.renderOutfit(this.state, this.state.myTeam);
 
@@ -191,7 +193,7 @@ export class Renderer {
       return;
     }
 
-    // Login phase: show MOTD on overlay, black tactical
+    // Login phase: show MOTD on overlay, cinematic 3D login scene
     if (this.state.phase === 'login' || !this.state.players[this.state.myNumber] ||
         this.state.players[this.state.myNumber]?.status === PFREE) {
       this.audio?.stopEngine();
@@ -199,7 +201,7 @@ export class Renderer {
         this.tacticalScene.restoreTacticalMode();
         this.isTacticalMode = false;
       }
-      this.tacticalScene.clear();
+      this.tacticalScene.renderLogin();
       this.renderMOTD(oCtx, w, h);
       this.renderGalactic();
       this.updateStatusBar();
@@ -211,6 +213,7 @@ export class Renderer {
 
     // Alive/observe — 3D tactical rendering
     if (!this.isTacticalMode) {
+      this.tacticalScene.cleanupLogin();
       this.tacticalScene.restoreTacticalMode();
       this.isTacticalMode = true;
     }
@@ -866,6 +869,15 @@ export class Renderer {
   // ============================================================
 
   private renderMOTD(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    // Semi-transparent gradient behind text for readability over 3D scene
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0.75)');
+    grad.addColorStop(0.5, 'rgba(0, 0, 0, 0.35)');
+    grad.addColorStop(0.85, 'rgba(0, 0, 0, 0.15)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.6)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
     ctx.fillStyle = '#0f0';
     ctx.font = 'bold 24px monospace';
     ctx.textAlign = 'center';

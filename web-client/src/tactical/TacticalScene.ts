@@ -14,12 +14,14 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { GameState, Player } from '../state';
 import {
   TWIDTH, SHIP_STATS, PALIVE, PEXPLODE, PFREE, MAXPLAYER,
-  SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, SGALAXY,
+  SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, SGALAXY, STARBASE,
+  FED, ROM, KLI, ORI, TEAM_COLORS,
 } from '../constants';
 
 import { GridPlane } from './GridPlane';
 import { Starfield3D } from './Starfield3D';
 import { PlanetMeshes } from './PlanetMesh';
+import { PlanetTextureManager } from './PlanetTextures';
 import { ShipMeshFactory } from './ShipMeshFactory';
 import { ShipEffects } from './ShipEffects';
 import { ProjectileMeshes } from './ProjectileMeshes';
@@ -88,6 +90,17 @@ export class TacticalScene {
   private outfitAngle = 0;
   private outfitCamera: THREE.OrthographicCamera;
   private outfitComposer: EffectComposer;
+
+  // Login scene state
+  private loginMode = false;
+  private loginPlanet: THREE.Group | null = null;
+  private loginStarbase: THREE.Group | null = null;
+  private loginShip: THREE.Group | null = null;
+  private loginAngle = 0;
+  private loginTeam = 0;
+  private loginTexManager = new PlanetTextureManager();
+  private loginCamera: THREE.PerspectiveCamera;
+  private loginComposer: EffectComposer;
 
   // Outfit ship types displayed (excludes Starbase)
   private static readonly OUTFIT_SHIP_TYPES = [SCOUT, DESTROYER, CRUISER, BATTLESHIP, ASSAULT, SGALAXY];
@@ -187,6 +200,21 @@ export class TacticalScene {
     );
     this.outfitComposer.addPass(outfitBloomPass);
 
+    // Login scene camera: dramatic elevated angle
+    this.loginCamera = new THREE.PerspectiveCamera(FOV, 1, 100, 50000);
+    this.loginCamera.position.set(2500, 2000, -3500);
+    this.loginCamera.lookAt(0, 0, 0);
+
+    // Login composer (uses login camera)
+    this.loginComposer = new EffectComposer(this.webglRenderer);
+    const loginRenderPass = new RenderPass(this.scene, this.loginCamera);
+    this.loginComposer.addPass(loginRenderPass);
+    const loginBloomPass = new UnrealBloomPass(
+      new THREE.Vector2(300, 300),
+      1.2, 0.4, 0.2,
+    );
+    this.loginComposer.addPass(loginBloomPass);
+
     // Pre-allocate explosion meshes (core fireball, shockwave ring, debris particles)
     for (let i = 0; i < MAXPLAYER; i++) {
       // Core fireball sphere
@@ -252,6 +280,11 @@ export class TacticalScene {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.composer.setSize(width * dpr, height * dpr);
+
+    // Update login camera aspect
+    this.loginCamera.aspect = width / height;
+    this.loginCamera.updateProjectionMatrix();
+    this.loginComposer.setSize(width * dpr, height * dpr);
 
     // Update outfit ortho camera to match aspect ratio
     const aspect = width / height;
@@ -412,6 +445,154 @@ export class TacticalScene {
   /** Clear the WebGL canvas (for non-tactical phases) */
   clear() {
     this.webglRenderer.clear(true, true, true);
+  }
+
+  /** Render cinematic login scene: rotating planet, starbase, orbiting Galaxy ship */
+  renderLogin() {
+    if (!this.loginMode) {
+      this.loginMode = true;
+
+      // Pick random team
+      const teams = [FED, ROM, KLI, ORI];
+      this.loginTeam = teams[Math.floor(Math.random() * teams.length)];
+      const teamColor = new THREE.Color(TEAM_COLORS[this.loginTeam]);
+
+      // Hide all tactical entities
+      this.shipEffects.group.visible = false;
+      this.projectiles.group.visible = false;
+      this.planets.group.visible = false;
+      this.grid.mesh.visible = false;
+      this.barrier.group.visible = false;
+      this.starfield.group.visible = true;
+
+      // Create planet sphere with procedural texture
+      this.loginPlanet = new THREE.Group();
+      const planetRadius = 600;
+      const sphereGeo = new THREE.SphereGeometry(planetRadius, 24, 16);
+      const tex = this.loginTexManager.getTexture(99, 'Earth', 0);
+      const sphereMat = new THREE.MeshStandardMaterial({
+        map: tex,
+        emissiveMap: tex,
+        emissive: teamColor.clone().lerp(new THREE.Color(0xffffff), 0.7),
+        emissiveIntensity: 0.8,
+        color: teamColor.clone().lerp(new THREE.Color(0xffffff), 0.8),
+        metalness: 0.3,
+        roughness: 0.7,
+      });
+      const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+      this.loginPlanet.add(sphere);
+
+      // Grid lines on planet
+      const gridPoints: number[] = [];
+      const gridSegs = 64;
+      for (let lat = -60; lat <= 60; lat += 30) {
+        const phi = (90 - lat) * Math.PI / 180;
+        const sinPhi = Math.sin(phi);
+        const cosPhi = Math.cos(phi);
+        for (let j = 0; j <= gridSegs; j++) {
+          const theta = (j / gridSegs) * Math.PI * 2;
+          gridPoints.push(
+            planetRadius * sinPhi * Math.cos(theta),
+            planetRadius * cosPhi,
+            planetRadius * sinPhi * Math.sin(theta),
+          );
+        }
+      }
+      for (let lon = 0; lon < 180; lon += 30) {
+        const thetaBase = lon * Math.PI / 180;
+        for (let j = 0; j <= gridSegs; j++) {
+          const phi = (j / gridSegs) * Math.PI;
+          const sinPhi = Math.sin(phi);
+          const cosPhi = Math.cos(phi);
+          gridPoints.push(
+            planetRadius * sinPhi * Math.cos(thetaBase),
+            planetRadius * cosPhi,
+            planetRadius * sinPhi * Math.sin(thetaBase),
+          );
+        }
+      }
+      const gridGeo = new THREE.BufferGeometry();
+      gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(gridPoints, 3));
+      const gridMat = new THREE.LineBasicMaterial({
+        color: teamColor,
+        transparent: true,
+        opacity: 0.15,
+        blending: THREE.AdditiveBlending,
+      });
+      this.loginPlanet.add(new THREE.LineLoop(gridGeo, gridMat));
+
+      // Tilt the planet axis
+      this.loginPlanet.rotation.x = 0.3;
+      this.loginPlanet.rotation.z = 0.15;
+      this.loginPlanet.position.set(0, 0, 0);
+      this.scene.add(this.loginPlanet);
+
+      // Create starbase — positioned between camera and planet, upper-left
+      // Camera at (2500,2000,-3500) looking at origin
+      this.loginStarbase = this.shipFactory.create(this.loginTeam, STARBASE);
+      this.loginStarbase.scale.multiplyScalar(0.5);
+      this.loginStarbase.position.set(-1200, 800, -1600);
+      this.scene.add(this.loginStarbase);
+
+      // Create Galaxy ship (scaled for scene proportion)
+      this.loginShip = this.shipFactory.create(this.loginTeam, SGALAXY);
+      this.loginShip.scale.multiplyScalar(0.7);
+      this.scene.add(this.loginShip);
+
+      this.loginAngle = 0;
+    }
+
+    // Animate each frame
+    this.loginAngle += 0.005;
+
+    // Rotate planet on its axis
+    if (this.loginPlanet) {
+      this.loginPlanet.children[0].rotation.y += 0.003;
+    }
+
+    // Starbase: saucer spin — slight tilt, rotating around vertical axis
+    if (this.loginStarbase) {
+      this.loginStarbase.rotation.set(-0.3, this.loginAngle * 2, 0);
+    }
+
+    // Galaxy ship orbits planet at y=0 so it passes behind the planet sphere
+    if (this.loginShip) {
+      const orbitRadius = 1000;
+      const ox = Math.cos(this.loginAngle) * orbitRadius;
+      const oz = Math.sin(this.loginAngle) * orbitRadius;
+      this.loginShip.position.set(ox, 0, oz);
+      // Nose along -Z in mesh; Y rotation of (PI - angle) aligns nose with orbit tangent
+      // Slight X tilt (-0.5 rad ≈ 30°) so it's not pure top-down from elevated camera
+      this.loginShip.rotation.set(-0.5, Math.PI - this.loginAngle, 0);
+    }
+
+    // Update starfield around origin
+    this.starfield.update(0, 0);
+
+    // Render with login composer
+    this.webglRenderer.clear(true, true, true);
+    this.loginComposer.render();
+  }
+
+  /** Clean up login scene meshes when transitioning away */
+  cleanupLogin() {
+    if (!this.loginMode) return;
+
+    if (this.loginPlanet) {
+      this.scene.remove(this.loginPlanet);
+      this.loginPlanet = null;
+    }
+    if (this.loginStarbase) {
+      this.scene.remove(this.loginStarbase);
+      this.loginStarbase = null;
+    }
+    if (this.loginShip) {
+      this.scene.remove(this.loginShip);
+      this.loginShip = null;
+    }
+
+    this.loginMode = false;
+    this.loginTeam = 0;
   }
 
   /** Draw ship and planet labels onto a 2D canvas overlay */
