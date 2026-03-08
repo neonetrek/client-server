@@ -941,11 +941,37 @@ export class Renderer {
 
     ctx.font = '11px monospace';
     ctx.fillStyle = '#0a0';
-    const startLine = Math.max(0, this.state.motdLines.length - 25);
-    for (let i = startLine; i < this.state.motdLines.length; i++) {
-      const y = 80 + (i - startLine) * 14;
+    const margin = 10;
+    const maxWidth = w - margin * 2;
+    const lineHeight = 14;
+
+    // Word-wrap MOTD lines that exceed canvas width
+    const wrappedLines: string[] = [];
+    for (const line of this.state.motdLines) {
+      if (!line || ctx.measureText(line).width <= maxWidth) {
+        wrappedLines.push(line);
+      } else {
+        const words = line.split(' ');
+        let current = '';
+        for (const word of words) {
+          const test = current ? current + ' ' + word : word;
+          if (ctx.measureText(test).width > maxWidth && current) {
+            wrappedLines.push(current);
+            current = word;
+          } else {
+            current = test;
+          }
+        }
+        if (current) wrappedLines.push(current);
+      }
+    }
+
+    const maxVisibleLines = Math.floor((h - 80 - 80) / lineHeight);
+    const startLine = Math.max(0, wrappedLines.length - maxVisibleLines);
+    for (let i = startLine; i < wrappedLines.length; i++) {
+      const y = 80 + (i - startLine) * lineHeight;
       if (y > h - 80) break;
-      ctx.fillText(this.state.motdLines[i], 10, y);
+      ctx.fillText(wrappedLines[i], margin, y);
     }
 
     if (!this.loginFormVisible) {

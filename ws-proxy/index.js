@@ -505,11 +505,6 @@ wss.on('connection', (ws) => {
         console.error(`[rank] Error fetching best rank for '${name}':`, err.message);
       }
 
-      // Ensure .players file has the proxy secret as password (fixes stale passwords)
-      if (instanceId) {
-        writePasswordToPlayerDB(instanceId, name, realmConfig.proxySecret);
-      }
-
       // Valid — rewrite password with proxy secret and forward
       console.log(`[proxy:${label}] Login validated for '${name}', rewriting password`);
       rewritePassword(buf, realmConfig.proxySecret);

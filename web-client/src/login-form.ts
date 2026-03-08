@@ -20,11 +20,13 @@ export class LoginFormController {
   private submitBtn: HTMLButtonElement;
   private toggleBtn: HTMLButtonElement;
   private statusEl: HTMLElement;
+  private titleEl: HTMLElement;
   private net: NetrekConnection;
   private state: GameState;
   private onSubmit: () => void;
   private _visible = false;
   private mode: FormMode = 'login';
+  private hideTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(net: NetrekConnection, state: GameState, onSubmit: () => void) {
     this.net = net;
@@ -38,6 +40,7 @@ export class LoginFormController {
     this.submitBtn = document.getElementById('login-submit-btn') as HTMLButtonElement;
     this.toggleBtn = document.getElementById('login-toggle') as HTMLButtonElement;
     this.statusEl = document.getElementById('login-status') as HTMLElement;
+    this.titleEl = document.getElementById('login-title') as HTMLElement;
 
     // Prevent game keyboard handler from intercepting typing in form inputs
     for (const el of [this.nameInput, this.emailInput, this.passwordInput]) {
@@ -102,6 +105,11 @@ export class LoginFormController {
 
   /** Re-show the form with an error message (called on login rejection) */
   showError(msg: string) {
+    // Cancel the pending hide timer from handleLogin()
+    if (this.hideTimer) {
+      clearTimeout(this.hideTimer);
+      this.hideTimer = null;
+    }
     this.form.classList.add('login-visible');
     this._visible = true;
     this.showStatus(msg);
@@ -113,11 +121,13 @@ export class LoginFormController {
     this.mode = mode;
     if (mode === 'register') {
       this.form.classList.add('login-register');
+      this.titleEl.textContent = 'REGISTER';
       this.submitBtn.textContent = 'Register';
       this.toggleBtn.textContent = 'Have an account? Login';
       this.passwordInput.autocomplete = 'new-password';
     } else {
       this.form.classList.remove('login-register');
+      this.titleEl.textContent = 'LOGIN';
       this.submitBtn.textContent = 'Login';
       this.toggleBtn.textContent = 'New player? Register';
       this.passwordInput.autocomplete = 'current-password';
@@ -205,6 +215,6 @@ export class LoginFormController {
     this.onSubmit();
 
     // Longer delay before hiding so password managers can capture the submission
-    setTimeout(() => this.hide(), 600);
+    this.hideTimer = setTimeout(() => { this.hideTimer = null; this.hide(); }, 600);
   }
 }

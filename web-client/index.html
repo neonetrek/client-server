@@ -187,29 +187,51 @@
       transform: translateX(-50%);
       z-index: 10;
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: stretch;
+      min-width: 280px;
       gap: 8px;
       background: rgba(0, 0, 0, 0.85);
-      border: 1px solid #0a0;
-      padding: 10px 16px;
+      border: 1px solid rgba(0, 170, 0, 0.6);
+      padding: 14px 20px;
       border-radius: 2px;
-      box-shadow: 0 0 12px rgba(0, 255, 0, 0.15);
+      box-shadow: 0 0 15px rgba(0, 255, 0, 0.1), inset 0 0 30px rgba(0, 255, 0, 0.03);
       /* Hidden by default using visibility/opacity for password manager compatibility */
       visibility: hidden;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.15s ease;
     }
+    .login-overlay:hover,
+    .login-overlay:focus-within {
+      border-color: #0a0;
+    }
     .login-overlay.login-visible {
       visibility: visible;
       opacity: 1;
       pointer-events: auto;
+    }
+    .login-title {
+      color: #0a0;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      text-align: center;
+      letter-spacing: 3px;
+      text-shadow: 0 0 6px rgba(0, 170, 0, 0.4);
+      opacity: 0.7;
+    }
+    .login-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     .login-label {
       color: #0a0;
       font-family: 'Courier New', monospace;
       font-size: 13px;
       text-shadow: 0 0 4px #0a0;
+      min-width: 70px;
+      text-align: right;
     }
     .login-overlay input {
       background: #050505;
@@ -217,8 +239,9 @@
       color: #0f0;
       font-family: 'Courier New', monospace;
       font-size: 13px;
-      padding: 4px 6px;
-      width: 120px;
+      padding: 6px 8px;
+      flex: 1;
+      width: auto;
       outline: none;
       text-shadow: 0 0 4px #0f0;
       box-shadow: inset 0 0 6px rgba(0, 255, 0, 0.1);
@@ -235,34 +258,16 @@
       color: #000;
       border: none;
       font-family: 'Courier New', monospace;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: bold;
-      padding: 4px 12px;
+      padding: 6px 12px;
+      width: 100%;
       cursor: pointer;
       text-shadow: none;
       box-shadow: 0 0 8px rgba(0, 255, 0, 0.3);
     }
     .login-submit:hover {
       background: #0f0;
-    }
-    /* Registration mode: stack fields vertically */
-    .login-overlay.login-register {
-      flex-direction: column;
-      gap: 6px;
-      align-items: stretch;
-      min-width: 280px;
-    }
-    .login-overlay.login-register .login-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .login-overlay.login-register .login-label {
-      min-width: 60px;
-      text-align: right;
-    }
-    .login-overlay.login-register input {
-      flex: 1;
     }
     .login-email-row {
       display: none;
@@ -272,9 +277,9 @@
     }
     .login-bottom-row {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
+      gap: 6px;
     }
     .login-toggle {
       color: #0a0;
@@ -285,6 +290,7 @@
       cursor: pointer;
       text-decoration: underline;
       padding: 0;
+      white-space: nowrap;
     }
     .login-toggle:hover {
       color: #0f0;
@@ -295,6 +301,7 @@
       font-size: 11px;
       min-height: 14px;
       text-align: center;
+      white-space: nowrap;
     }
   </style>
 </head>
@@ -307,6 +314,7 @@
         <div id="status">Connecting...</div>
         <iframe name="login-sink" id="login-sink" style="display:none;" aria-hidden="true"></iframe>
         <form id="login-form" class="login-overlay" autocomplete="on" action="" method="post" target="login-sink">
+          <div class="login-title" id="login-title">LOGIN</div>
           <div class="login-row">
             <label for="login-name" class="login-label">Name:</label>
             <input id="login-name" type="text" name="username" autocomplete="username"
@@ -324,8 +332,8 @@
           </div>
           <div id="login-status" class="login-status"></div>
           <div class="login-bottom-row">
-            <button type="button" id="login-toggle" class="login-toggle">New player? Register</button>
             <button type="submit" id="login-submit-btn" class="login-submit">Login</button>
+            <button type="button" id="login-toggle" class="login-toggle">New player? Register</button>
           </div>
         </form>
       </div>

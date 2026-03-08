@@ -18,6 +18,7 @@ import { createGameState, GameState } from '../state';
 function createDOM() {
   document.body.innerHTML = `
     <form id="login-form" class="login-overlay">
+      <div class="login-title" id="login-title">LOGIN</div>
       <div class="login-row">
         <input id="login-name" type="text" name="username" maxlength="15" />
       </div>

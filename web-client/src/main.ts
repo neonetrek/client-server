@@ -77,6 +77,17 @@ const wsUrl = `${protocol}//${window.location.host}${wsPath}`;
 statusEl.textContent = `Connecting to ${wsUrl}...`;
 net.connect(wsUrl);
 
+// Fetch server config for page title (same config.json the portal uses)
+fetch('/config.json')
+  .then(r => r.json())
+  .then(cfg => {
+    const serverName = cfg?.server?.name;
+    if (!serverName) return;
+    const inst = instanceId && cfg?.instances?.find((i: any) => i.id === instanceId);
+    document.title = inst ? `${inst.name} - ${serverName}` : serverName;
+  })
+  .catch(() => {});
+
 // Layout sizing: tactical is wide (full panel width), galactic is square
 function resizeLayout() {
   const vw = window.innerWidth;
