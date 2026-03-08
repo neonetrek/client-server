@@ -547,6 +547,7 @@ export class NetrekConnection {
         const f = unpack(SP.WARNING.format, view);
         s.warningText = f[1] as string;
         s.warningTime = Date.now();
+        s._warningFromServer = true;
         break;
       }
 
@@ -559,8 +560,12 @@ export class NetrekConnection {
           s.phase = 'outfit';
           console.log('[net] Phase: login → outfit (from SP_LOGIN)');
         } else if (!accept) {
-          s.warningText = 'Login rejected. Try "guest" or check name/password.';
-          s.warningTime = Date.now();
+          // Keep the SP_WARNING message if one was just received (proxy sends reason before reject)
+          if (!s._warningFromServer) {
+            s.warningText = 'Login rejected. Try "guest" or check name/password.';
+            s.warningTime = Date.now();
+          }
+          s._warningFromServer = false;
           console.log('[net] Login rejected by server');
         }
         break;

@@ -269,89 +269,77 @@ function startStatsSync() {
 // ---- Session lock: prevent same account on multiple instances ----
 const activeSessions = new Map(); // playerName (lowercase) → { instanceId, ws }
 
-// ---- Rank-on-login: write global best rank into instance .players file ----
-function writeRankToPlayerDB(instanceId, name, rank) {
+// ---- Helpers: find a player record in the binary .players file ----
+const PASSWORD_OFFSET = 16; // password field: after name[16]
+const PASSWORD_LEN = 16;
+
+// Returns { fd, offset, recordSize } or null. Caller must close fd.
+function findPlayerRecord(instanceId, name) {
   const playerFile = path.join('/opt/netrek/var', instanceId, 'players');
   let fd;
   try {
     fd = fs.openSync(playerFile, 'r+');
   } catch (err) {
-    // File doesn't exist yet — C server will create it on first join
-    return;
+    return null;
   }
 
-  try {
-    const stat = fs.fstatSync(fd);
-    const fileSize = stat.size;
-    if (fileSize < EXPECTED_RECORD_SIZE) return;
+  const buf = fs.readFileSync(playerFile);
+  const recordSize = detectRecordSize(buf);
+  if (!recordSize) { fs.closeSync(fd); return null; }
 
-    const nameBuf = Buffer.alloc(NAME_LEN);
-    for (let offset = 0; offset + EXPECTED_RECORD_SIZE <= fileSize; offset += EXPECTED_RECORD_SIZE) {
-      // Read the name field (first 16 bytes)
-      fs.readSync(fd, nameBuf, 0, NAME_LEN, offset);
-      const recordName = nameBuf.toString('ascii').replace(/\0.*/, '');
-      if (recordName.toLowerCase() !== name.toLowerCase()) continue;
-
-      // Found matching record — read current rank
-      const rankBuf = Buffer.alloc(4);
-      fs.readSync(fd, rankBuf, 0, 4, offset + RANK_OFFSET);
-      const currentRank = rankBuf.readInt32LE(0);
-
-      if (currentRank >= rank) return; // already at or above this rank
-
-      // Write the new rank
-      const newRankBuf = Buffer.alloc(4);
-      newRankBuf.writeInt32LE(rank, 0);
-      fs.writeSync(fd, newRankBuf, 0, 4, offset + RANK_OFFSET);
-      console.log(`[rank] Wrote rank ${rank} for '${name}' on instance '${instanceId}' (was ${currentRank})`);
-      return;
+  const nameBuf = Buffer.alloc(NAME_LEN);
+  for (let offset = 0; offset + recordSize <= buf.length; offset += recordSize) {
+    fs.readSync(fd, nameBuf, 0, NAME_LEN, offset);
+    const recordName = nameBuf.toString('ascii').replace(/\0.*/, '');
+    if (recordName.toLowerCase() === name.toLowerCase()) {
+      return { fd, offset, recordSize };
     }
-    // Player not found in file — will be created by C server on first join
+  }
+
+  fs.closeSync(fd);
+  return null;
+}
+
+// ---- Rank-on-login: write global best rank into instance .players file ----
+function writeRankToPlayerDB(instanceId, name, rank) {
+  const rec = findPlayerRecord(instanceId, name);
+  if (!rec) return;
+
+  try {
+    // Only write rank if record is large enough (EXPECTED_RECORD_SIZE with LTD stats)
+    if (rec.recordSize < RANK_OFFSET + 4) return;
+
+    const rankBuf = Buffer.alloc(4);
+    fs.readSync(rec.fd, rankBuf, 0, 4, rec.offset + RANK_OFFSET);
+    const currentRank = rankBuf.readInt32LE(0);
+    if (currentRank >= rank) return;
+
+    const newRankBuf = Buffer.alloc(4);
+    newRankBuf.writeInt32LE(rank, 0);
+    fs.writeSync(rec.fd, newRankBuf, 0, 4, rec.offset + RANK_OFFSET);
+    console.log(`[rank] Wrote rank ${rank} for '${name}' on instance '${instanceId}' (was ${currentRank})`);
   } finally {
-    fs.closeSync(fd);
+    fs.closeSync(rec.fd);
   }
 }
 
 // ---- Password sync: ensure C server .players file has the proxy secret ----
-const PASSWORD_OFFSET = 16; // password field starts at byte 16 (after name[16])
-const PASSWORD_LEN = 16;
-
 function writePasswordToPlayerDB(instanceId, name, secret) {
-  const playerFile = path.join('/opt/netrek/var', instanceId, 'players');
-  let fd;
-  try {
-    fd = fs.openSync(playerFile, 'r+');
-  } catch (err) {
-    return; // File doesn't exist yet
-  }
+  const rec = findPlayerRecord(instanceId, name);
+  if (!rec) return;
 
   try {
-    const stat = fs.fstatSync(fd);
-    const fileSize = stat.size;
-    if (fileSize < EXPECTED_RECORD_SIZE) return;
+    const pwBuf = Buffer.alloc(PASSWORD_LEN);
+    fs.readSync(rec.fd, pwBuf, 0, PASSWORD_LEN, rec.offset + PASSWORD_OFFSET);
+    const currentPw = pwBuf.toString('ascii').replace(/\0.*/, '');
+    if (currentPw === secret) return;
 
-    const nameBuf = Buffer.alloc(NAME_LEN);
-    for (let offset = 0; offset + EXPECTED_RECORD_SIZE <= fileSize; offset += EXPECTED_RECORD_SIZE) {
-      fs.readSync(fd, nameBuf, 0, NAME_LEN, offset);
-      const recordName = nameBuf.toString('ascii').replace(/\0.*/, '');
-      if (recordName.toLowerCase() !== name.toLowerCase()) continue;
-
-      // Read current password
-      const pwBuf = Buffer.alloc(PASSWORD_LEN);
-      fs.readSync(fd, pwBuf, 0, PASSWORD_LEN, offset + PASSWORD_OFFSET);
-      const currentPw = pwBuf.toString('ascii').replace(/\0.*/, '');
-
-      if (currentPw === secret) return; // already correct
-
-      // Write proxy secret as password
-      const newPwBuf = Buffer.alloc(PASSWORD_LEN);
-      newPwBuf.write(secret.substring(0, 15), 0, 'ascii');
-      fs.writeSync(fd, newPwBuf, 0, PASSWORD_LEN, offset + PASSWORD_OFFSET);
-      console.log(`[auth] Updated password in .players for '${name}' on instance '${instanceId}'`);
-      return;
-    }
+    const newPwBuf = Buffer.alloc(PASSWORD_LEN);
+    newPwBuf.write(secret.substring(0, 15), 0, 'ascii');
+    fs.writeSync(rec.fd, newPwBuf, 0, PASSWORD_LEN, rec.offset + PASSWORD_OFFSET);
+    console.log(`[auth] Updated password in .players for '${name}' on instance '${instanceId}'`);
   } finally {
-    fs.closeSync(fd);
+    fs.closeSync(rec.fd);
   }
 }
 
