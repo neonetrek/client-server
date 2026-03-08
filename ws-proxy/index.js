@@ -312,6 +312,49 @@ function writeRankToPlayerDB(instanceId, name, rank) {
   }
 }
 
+// ---- Password sync: ensure C server .players file has the proxy secret ----
+const PASSWORD_OFFSET = 16; // password field starts at byte 16 (after name[16])
+const PASSWORD_LEN = 16;
+
+function writePasswordToPlayerDB(instanceId, name, secret) {
+  const playerFile = path.join('/opt/netrek/var', instanceId, 'players');
+  let fd;
+  try {
+    fd = fs.openSync(playerFile, 'r+');
+  } catch (err) {
+    return; // File doesn't exist yet
+  }
+
+  try {
+    const stat = fs.fstatSync(fd);
+    const fileSize = stat.size;
+    if (fileSize < EXPECTED_RECORD_SIZE) return;
+
+    const nameBuf = Buffer.alloc(NAME_LEN);
+    for (let offset = 0; offset + EXPECTED_RECORD_SIZE <= fileSize; offset += EXPECTED_RECORD_SIZE) {
+      fs.readSync(fd, nameBuf, 0, NAME_LEN, offset);
+      const recordName = nameBuf.toString('ascii').replace(/\0.*/, '');
+      if (recordName.toLowerCase() !== name.toLowerCase()) continue;
+
+      // Read current password
+      const pwBuf = Buffer.alloc(PASSWORD_LEN);
+      fs.readSync(fd, pwBuf, 0, PASSWORD_LEN, offset + PASSWORD_OFFSET);
+      const currentPw = pwBuf.toString('ascii').replace(/\0.*/, '');
+
+      if (currentPw === secret) return; // already correct
+
+      // Write proxy secret as password
+      const newPwBuf = Buffer.alloc(PASSWORD_LEN);
+      newPwBuf.write(secret.substring(0, 15), 0, 'ascii');
+      fs.writeSync(fd, newPwBuf, 0, PASSWORD_LEN, offset + PASSWORD_OFFSET);
+      console.log(`[auth] Updated password in .players for '${name}' on instance '${instanceId}'`);
+      return;
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 // Web client served at /play/
 app.use('/play', express.static(STATIC_DIR));
 app.get('/play/*', (req, res) => {
@@ -472,6 +515,11 @@ wss.on('connection', (ws) => {
         }
       } catch (err) {
         console.error(`[rank] Error fetching best rank for '${name}':`, err.message);
+      }
+
+      // Ensure .players file has the proxy secret as password (fixes stale passwords)
+      if (instanceId) {
+        writePasswordToPlayerDB(instanceId, name, realmConfig.proxySecret);
       }
 
       // Valid — rewrite password with proxy secret and forward
