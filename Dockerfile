@@ -19,7 +19,7 @@ WORKDIR /src
 # BASEPRACTICE: base practice bots
 # Serial make - parallel has race on libnetrek.a
 RUN sh autogen.sh \
-    && CFLAGS="-DPRETSERVER -DNEWBIESERVER -DBASEPRACTICE" \
+    && CFLAGS="-DPRETSERVER -DNEWBIESERVER -DBASEPRACTICE -DLTD_STATS -DLTD_PER_RACE" \
        ./configure --prefix=/opt/netrek \
     && make \
     && make install
