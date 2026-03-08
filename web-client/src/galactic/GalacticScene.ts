@@ -128,7 +128,7 @@ export class GalacticScene {
 
   render(state: GameState, halfExtents: { halfW: number; halfH: number }) {
     // Update sub-modules
-    this.planets.update(state.planets);
+    this.planets.update(state.planets, state.planetAlerts);
     this.players.update(state.players, state.myNumber);
 
     // Viewport indicator
@@ -149,7 +149,7 @@ export class GalacticScene {
     const cam = this.camera;
 
     // Planet labels
-    for (const data of this.planets.getLabelData(state.planets)) {
+    for (const data of this.planets.getLabelData(state.planets, state.planetAlerts)) {
       const { x, y } = lr.project(data.worldPos, cam, width, height);
       if (x < -50 || x > width + 50 || y < -50 || y > height + 50) continue;
       lr.drawPlanetLabel(ctx, x, y, data.name, data.armies, data.flags, data.teamColor, 9);

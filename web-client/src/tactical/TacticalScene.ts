@@ -327,7 +327,7 @@ export class TacticalScene {
     // Update sub-modules
     this.starfield.update(playerX, playerZ);
     const { halfW, halfH } = this.getVisibleHalfExtents();
-    this.planets.update(state.planets, playerX, playerZ, halfW, halfH);
+    this.planets.update(state.planets, playerX, playerZ, halfW, halfH, state.planetAlerts);
     this.updateShips(state, playerX, playerZ);
     this.shipEffects.update(state.players, state.myNumber, playerX, playerZ, TAC_RANGE);
     this.projectiles.update(state, playerX, playerZ, TAC_RANGE);

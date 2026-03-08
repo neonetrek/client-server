@@ -248,6 +248,11 @@ export class Renderer {
       oCtx.shadowBlur = 0;
     }
 
+    // Loss warning banner (prominent pulsing alert when enemy is about to win)
+    if (s.lossWarning && Date.now() - s.lossWarningTime < 10000) {
+      this.renderLossWarning(oCtx, w, h, s.lossWarning, s.lossWarningTime);
+    }
+
     // Update HTML panels
     this.updateStatusBar();
     this.updatePlayerList();
@@ -532,6 +537,52 @@ export class Renderer {
     if (msg.flags & MALL) return 'msg-all';
 
     return 'msg-system';
+  }
+
+  // ============================================================
+  // Loss Warning Banner (overlay canvas)
+  // ============================================================
+
+  private renderLossWarning(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    text: string,
+    startTime: number,
+  ) {
+    const now = Date.now();
+    const age = now - startTime;
+    const fade = Math.max(0, 1 - age / 10000); // fade out over 10s
+    const pulse = 0.6 + 0.4 * Math.sin(now / 200); // fast pulse
+
+    ctx.save();
+
+    // Semi-transparent red banner background
+    const bannerH = 32;
+    const bannerY = 36; // below the warning text area
+    ctx.fillStyle = `rgba(180, 0, 0, ${fade * pulse * 0.5})`;
+    ctx.fillRect(0, bannerY, w, bannerH);
+
+    // Border lines
+    ctx.strokeStyle = `rgba(255, 60, 0, ${fade * pulse * 0.8})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, bannerY);
+    ctx.lineTo(w, bannerY);
+    ctx.moveTo(0, bannerY + bannerH);
+    ctx.lineTo(w, bannerY + bannerH);
+    ctx.stroke();
+
+    // Text
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = 8 * pulse;
+    ctx.fillStyle = `rgba(255, 255, 50, ${fade * (0.7 + 0.3 * pulse)})`;
+    ctx.fillText(`\u26A0 ${text}`, w / 2, bannerY + bannerH / 2);
+
+    ctx.restore();
   }
 
   // ============================================================

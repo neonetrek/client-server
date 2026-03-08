@@ -5,7 +5,7 @@
  */
 
 import * as THREE from 'three';
-import { Planet } from '../state';
+import { Planet, PlanetAlert } from '../state';
 import { TEAM_COLORS, PLREPAIR, PLFUEL, PLAGRI, PLHOME, IND, MAXPLANETS } from '../constants';
 import { PlanetLabelData } from '../LabelRenderer';
 import { PlanetTextureManager } from './PlanetTextures';
@@ -14,6 +14,8 @@ const PLANET_RADIUS = 600;
 const PLANET_Y = 5; // layer height
 const GOLDEN_ANGLE = 2.39996; // golden angle in radians for deterministic spread
 const GRID_SEGMENTS = 64; // points per circle
+const ALERT_DURATION = 8000; // ms
+const ALERT_RING_RADIUS = PLANET_RADIUS * 1.8;
 
 const WHITE = new THREE.Color(0xffffff);
 
@@ -67,6 +69,7 @@ interface PlanetVisual {
   sphere: THREE.Mesh;
   gridLines: THREE.LineLoop;
   homeRing: THREE.Mesh;
+  alertRing: THREE.Mesh;
 }
 
 export class PlanetMeshes {
@@ -77,6 +80,7 @@ export class PlanetMeshes {
   private sphereGeo: THREE.SphereGeometry;
   private ringGeo: THREE.TorusGeometry;
   private gridGeo: THREE.BufferGeometry;
+  private alertRingGeo: THREE.RingGeometry;
 
   // Texture manager
   private texManager = new PlanetTextureManager();
@@ -88,6 +92,7 @@ export class PlanetMeshes {
     this.sphereGeo = new THREE.SphereGeometry(PLANET_RADIUS, 24, 16);
     this.ringGeo = new THREE.TorusGeometry(PLANET_RADIUS * 1.15, 15, 4, 24);
     this.gridGeo = buildGridGeometry();
+    this.alertRingGeo = new THREE.RingGeometry(ALERT_RING_RADIUS * 0.7, ALERT_RING_RADIUS, 32);
 
     for (let i = 0; i < MAXPLANETS; i++) {
       this.lastPlanetName.push('');
@@ -138,16 +143,31 @@ export class PlanetMeshes {
       homeRing.visible = false;
       g.add(homeRing);
 
+      // Alert ring (pulsing red when planet is under attack)
+      const alertMat = new THREE.MeshBasicMaterial({
+        color: 0xff2200,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const alertRing = new THREE.Mesh(this.alertRingGeo, alertMat);
+      alertRing.rotation.x = -Math.PI / 2;
+      alertRing.visible = false;
+      g.add(alertRing);
+
       this.group.add(g);
-      this.visuals.push({ group: g, innerGroup, sphere, gridLines, homeRing });
+      this.visuals.push({ group: g, innerGroup, sphere, gridLines, homeRing, alertRing });
     }
   }
 
   /** Sync planet visuals with game state */
-  update(planets: Planet[], playerX: number, playerZ: number, halfW: number, halfH: number) {
+  update(planets: Planet[], playerX: number, playerZ: number, halfW: number, halfH: number, alerts?: Map<number, PlanetAlert>) {
     // Use actual camera frustum extents + buffer so planets don't pop in at the edges
     const bufferW = halfW + PLANET_RADIUS * 3;
     const bufferH = halfH + PLANET_RADIUS * 3;
+    const now = Date.now();
 
     for (let i = 0; i < MAXPLANETS; i++) {
       const planet = planets[i];
@@ -194,6 +214,21 @@ export class PlanetMeshes {
 
       // Home planet ring
       vis.homeRing.visible = !!(planet.flags & PLHOME);
+
+      // Alert ring — pulse when planet is under attack
+      const alert = alerts?.get(i);
+      if (alert && (now - alert.time) < ALERT_DURATION) {
+        const age = now - alert.time;
+        const fade = 1 - age / ALERT_DURATION;
+        const pulse = 0.5 + 0.5 * Math.sin(now / 150);
+        const alertMat = vis.alertRing.material as THREE.MeshBasicMaterial;
+        alertMat.opacity = fade * pulse * 0.6;
+        const scale = 1.0 + pulse * 0.3;
+        vis.alertRing.scale.set(scale, scale, 1);
+        vis.alertRing.visible = true;
+      } else {
+        vis.alertRing.visible = false;
+      }
     }
   }
 

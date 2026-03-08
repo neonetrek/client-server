@@ -526,9 +526,20 @@ export class NetrekConnection {
         const from = f[2] as number;
         const to = f[3] as number;
         const text = f[4] as string;
-        s.messages.push({ from, to, flags, text, time: Date.now() });
+        const now = Date.now();
+        s.messages.push({ from, to, flags, text, time: now });
         // Keep last 100 messages
         if (s.messages.length > 100) s.messages.shift();
+
+        // Detect planet attack messages and populate planetAlerts
+        this.parsePlanetAlerts(text, now);
+
+        // Detect "about to lose" GOD messages
+        if (/need \d+ more planet/.test(text)) {
+          // Body starts at offset 10 (after "GOD->ALL  " prefix), trim whitespace
+          s.lossWarning = (text.length > 10 ? text.substring(10) : text).trim();
+          s.lossWarningTime = now;
+        }
         break;
       }
 
@@ -791,5 +802,76 @@ export class NetrekConnection {
 
   sendFeature(type: number, arg1: number, arg2: number, value: number, name: string) {
     this.send(pack(CP.FEATURE.format, CP.FEATURE.code, type, arg1, arg2, value, name));
+  }
+
+  /** Parse message text for planet attack/destruction alerts.
+   *
+   * Server message format (smessage.c):
+   *   bytes 0-9: address prefix "%-9s " (e.g. "Ear->FED  " or "GOD->ALL  ")
+   *   bytes 10+: message body
+   *
+   * For long planet names, the address prefix overflows and the "->" or team
+   * short may be partially overwritten by the body at offset 10.
+   *
+   * Attack address: sprintf(buf, "%-3s->%-3s", pl_name, teamshort)
+   *   → "Ear->FED" (8 chars, fits in 9)
+   *   → "Deneb->FED" (10 chars, overflows: body overwrites at pos 10)
+   *   → "Beta Cruci->FED" (15 chars, heavily overwritten)
+   * Attack body: "We are being attacked by %s %s who is %d%% damaged."
+   *
+   * Destroyed body: "%s destroyed by %s" where first %s = full pl_name
+   */
+  private parsePlanetAlerts(text: string, now: number) {
+    const s = this.state;
+
+    // Attack pattern: look for "We are being attacked by" anywhere in the text.
+    // The planet name is in the address prefix (first 10 chars, before "->").
+    // For long planet names the "->" may be overwritten, so we extract from
+    // the beginning of the text up to "We are".
+    if (text.includes('We are being attacked by')) {
+      // Extract address prefix — everything before "We are being attacked"
+      const prefix = text.substring(0, text.indexOf('We are being attacked'));
+      // The prefix format is "PlanetName->TEAM " but "->" may be missing if overwritten.
+      // Extract planet name: take content before "->" if present, otherwise
+      // the prefix IS the planet name (overflowed).
+      const arrowIdx = prefix.indexOf('->');
+      const planetName = (arrowIdx >= 0 ? prefix.substring(0, arrowIdx) : prefix).trim();
+      const attacker = text.match(/attacked by (.+?) who is/)?.[1] ?? 'unknown';
+      const idx = this.findPlanetByName(planetName);
+      if (idx >= 0) {
+        s.planetAlerts.set(idx, { time: now, attacker });
+      }
+      return;
+    }
+
+    // Destroyed pattern: body (after offset 10) is "<FullPlanetName> destroyed by <player>"
+    // But offset 10 may land in the middle of the address prefix for long names.
+    // The full planet name is repeated in the body, so extract it from there.
+    if (text.includes(' destroyed by ')) {
+      // Find the body portion — try from offset 10 first, fall back to full text
+      const body = text.length > 10 ? text.substring(10).trimStart() : text;
+      const desMatch = body.match(/^(.+?) destroyed by (.+)/);
+      if (desMatch) {
+        const planetName = desMatch[1].trim();
+        const attacker = desMatch[2];
+        const idx = this.findPlanetByName(planetName);
+        if (idx >= 0) {
+          s.planetAlerts.set(idx, { time: now, attacker });
+        }
+      }
+    }
+  }
+
+  /** Find planet index by name (exact or prefix match) */
+  private findPlanetByName(name: string): number {
+    const s = this.state;
+    const lower = name.toLowerCase();
+    for (let i = 0; i < s.planets.length; i++) {
+      const pName = s.planets[i].name.toLowerCase();
+      if (pName && (pName === lower || lower.startsWith(pName) || pName.startsWith(lower))) {
+        return i;
+      }
+    }
+    return -1;
   }
 }

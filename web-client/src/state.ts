@@ -99,6 +99,12 @@ export interface Message {
   time: number;
 }
 
+/** Alert for a planet under attack or destroyed */
+export interface PlanetAlert {
+  time: number;       // Date.now() when alert was set
+  attacker: string;   // attacker description from message
+}
+
 export interface GameState {
   // Connection
   connected: boolean;
@@ -127,6 +133,11 @@ export interface GameState {
   messages: Message[];
   warningText: string;
   warningTime: number;
+
+  // Planet attack alerts & loss warnings
+  planetAlerts: Map<number, PlanetAlert>;  // planetIndex -> alert
+  lossWarning: string;
+  lossWarningTime: number;
 
   // Server info
   queuePos: number;
@@ -212,6 +223,9 @@ export function createGameState(): GameState {
     messages: [],
     warningText: '',
     warningTime: 0,
+    planetAlerts: new Map(),
+    lossWarning: '',
+    lossWarningTime: 0,
     desiredDir: -1,
     beamAttempt: null,
     desiredSpeed: -1,
