@@ -36,7 +36,20 @@ COPY web-client/ ./
 RUN npm run build
 
 # ============================================================
-# Stage 3: Final runtime image
+# Stage 3: Build WS proxy dependencies (native modules like better-sqlite3)
+# ============================================================
+FROM node:18-slim AS proxy-builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY ws-proxy/package.json ws-proxy/package-lock.json* ./
+RUN npm install --production
+
+# ============================================================
+# Stage 4: Final runtime image
 # ============================================================
 FROM debian:bookworm-slim
 
@@ -59,10 +72,9 @@ RUN mkdir -p /opt/netrek/etc/og && printf '%s\n' \
     'upd 2' \
     > /opt/netrek/etc/og/og
 
-# Copy WS proxy
+# Copy WS proxy source + pre-built node_modules (with native deps from proxy-builder)
 COPY ws-proxy/ /opt/ws-proxy/
-WORKDIR /opt/ws-proxy
-RUN npm ci --production
+COPY --from=proxy-builder /build/node_modules /opt/ws-proxy/node_modules
 
 # Copy built web client
 COPY --from=client-builder /build/dist /opt/web-client

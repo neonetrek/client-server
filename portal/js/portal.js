@@ -231,14 +231,21 @@
   var leaderboardInstance = null; // current instance for leaderboard
 
   function fetchLeaderboard(instanceId) {
-    var url = '/api/leaderboard';
-    if (instanceId) url += '?instance=' + encodeURIComponent(instanceId);
+    var url;
+    if (instanceId === 'global') {
+      url = '/api/global-leaderboard';
+    } else {
+      url = '/api/leaderboard';
+      if (instanceId) url += '?instance=' + encodeURIComponent(instanceId);
+    }
     fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (Array.isArray(data) && data.length > 0) {
-          leaderboardData = data;
-          renderLeaderboard(data, 'overall');
+        // Global returns { updated, players }, per-instance returns array directly
+        var players = Array.isArray(data) ? data : (data && data.players) || [];
+        if (players.length > 0) {
+          leaderboardData = players;
+          renderLeaderboard(players, 'overall');
         }
       })
       .catch(function () {
@@ -290,21 +297,25 @@
     if (!container || data.length <= 1) return;
 
     container.style.display = '';
-    container.innerHTML = data.map(function (inst, i) {
-      var cls = i === 0 ? 'lb-instance-tab active' : 'lb-instance-tab';
-      return '<button class="' + cls + '" onclick="switchLeaderboardInstance(\'' +
+
+    // Prepend "Global" tab, default active
+    var html = '<button class="lb-instance-tab active" onclick="switchLeaderboardInstance(\'global\')">Global</button>';
+    html += data.map(function (inst) {
+      return '<button class="lb-instance-tab" onclick="switchLeaderboardInstance(\'' +
         escapeHtml(inst.id) + '\')">' + escapeHtml(inst.name) + '</button>';
     }).join('');
+    container.innerHTML = html;
 
-    // Fetch first instance's leaderboard
-    leaderboardInstance = data[0].id;
-    fetchLeaderboard(data[0].id);
+    // Default to global leaderboard
+    leaderboardInstance = 'global';
+    fetchLeaderboard('global');
   }
 
   window.switchLeaderboardInstance = function (instanceId) {
     leaderboardInstance = instanceId;
+    var matchName = instanceId === 'global' ? 'Global' : (instanceMap[instanceId] || instanceId);
     document.querySelectorAll('.lb-instance-tab').forEach(function (tab) {
-      tab.classList.toggle('active', tab.textContent === (instanceMap[instanceId] || instanceId));
+      tab.classList.toggle('active', tab.textContent === matchName);
     });
     fetchLeaderboard(instanceId);
   };

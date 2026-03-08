@@ -10,6 +10,10 @@
  *
  * Data is sent as raw binary ArrayBuffers over WebSocket,
  * and forwarded as-is to the TCP socket (and vice versa).
+ *
+ * Realm auth: CP_LOGIN packets are intercepted; the real password is validated
+ * against the Realm Controller (bcrypt), then replaced with a proxy secret
+ * before forwarding to the C game server.
  */
 
 const net = require('net');
@@ -18,6 +22,11 @@ const fs = require('fs');
 const express = require('express');
 const { WebSocketServer } = require('ws');
 const path = require('path');
+const auth = require('./auth');
+const {
+  buildSPWarning, buildSPLoginReject, rewritePassword,
+  extractString, isCPLogin, isGuestLogin, isQueryLogin,
+} = require('./packet-helpers');
 
 const NETREK_HOST = process.env.NETREK_HOST || '127.0.0.1';
 const NETREK_PORT = parseInt(process.env.NETREK_PORT || '2592', 10);
@@ -28,6 +37,8 @@ const CONFIG_FILE = process.env.NEONETREK_CONFIG || '/opt/config.json';
 
 // ---- Load instances configuration from config.json ----
 let instances = [];
+let realmConfig = null;
+let serverName = 'Unknown';
 const instanceMap = new Map(); // id → { port, ... }
 // Track per-instance connection counts
 const instanceConnections = new Map(); // id → Set<ws>
@@ -35,6 +46,8 @@ const instanceConnections = new Map(); // id → Set<ws>
 try {
   const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
   instances = config.instances || [];
+  realmConfig = config.realm || null;
+  serverName = (config.server && config.server.name) || 'Unknown';
   for (const inst of instances) {
     instanceMap.set(inst.id, inst);
     instanceConnections.set(inst.id, new Set());
@@ -44,7 +57,13 @@ try {
   console.log(`[proxy] No config.json found, using single-instance mode (port ${NETREK_PORT})`);
 }
 
+// ---- Initialize Realm Auth ----
+auth.init(realmConfig);
+
 const app = express();
+
+// ---- Realm auth API routes (must be before catch-all static routes) ----
+auth.setupRoutes(app);
 
 // Health check endpoint for container orchestrators
 // CORS allowed so other NeoNetrek portals can show server status
@@ -70,7 +89,7 @@ app.get('/api/instances', (req, res) => {
   })));
 });
 
-// Leaderboard API — per-instance player stats
+// Leaderboard API — per-instance player stats (kept for portal)
 // Uses ?instance=<id> query param, defaults to first instance
 app.get('/api/leaderboard', (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
@@ -169,6 +188,8 @@ function parsePlayerDB(buf) {
       offense: killsTotal,
       bombing,
       planets: planetsTaken,
+      kills: killsTotal,
+      deaths: deathsTotal,
       total: killsTotal + bombing + planetsTaken,
     });
   }
@@ -203,117 +224,93 @@ function detectRecordSize(buf) {
   return 0;
 }
 
-// ---- Global leaderboard: aggregate from all NeoNetrek servers ----
-const SERVERS_JSON_URL = 'https://neonetrek.com/servers.json';
-const SERVERS_REFRESH_MS = 30 * 60 * 1000; // 30 minutes
-const LEADERBOARD_CACHE_MS = 5 * 60 * 1000; // 5 minutes
+// ---- Stats sync worker ----
 
-let knownServers = [];
-let leaderboardCache = null; // { updated, players, timestamp }
+const STATS_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const GUEST_ROBOT_PATTERN = /^(guest|robot|clone-|borg)/i;
 
-async function fetchServersList() {
-  try {
-    const res = await fetch(SERVERS_JSON_URL);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data)) knownServers = data;
-      console.log(`[proxy] Refreshed servers list: ${knownServers.length} server(s)`);
-    }
-  } catch (err) {
-    console.log(`[proxy] Failed to fetch servers.json: ${err.message}`);
-  }
-}
+function startStatsSync() {
+  if (!realmConfig) return;
 
-// Initial fetch + periodic refresh
-fetchServersList();
-setInterval(fetchServersList, SERVERS_REFRESH_MS);
-
-async function fetchServerLeaderboard(server) {
-  const baseUrl = (server.url || '').replace(/\/+$/, '');
-  if (!baseUrl) return [];
-
-  const results = [];
-  try {
-    // Fetch instances list
-    const instRes = await fetch(`${baseUrl}/api/instances`, { signal: AbortSignal.timeout(8000) });
-    if (!instRes.ok) throw new Error('instances failed');
-    const instancesList = await instRes.json();
-
-    // Fetch leaderboard for each instance
-    const fetches = instancesList.map(async (inst) => {
+  setInterval(async () => {
+    for (const inst of instances) {
+      const playerFile = path.join('/opt/netrek/var', inst.id, 'players');
       try {
-        const lbRes = await fetch(
-          `${baseUrl}/api/leaderboard?instance=${encodeURIComponent(inst.id)}`,
-          { signal: AbortSignal.timeout(8000) }
-        );
-        if (!lbRes.ok) return [];
-        const players = await lbRes.json();
-        return (Array.isArray(players) ? players : []).map(p => ({
-          ...p,
-          server: server.name || 'Unknown',
-          instance: inst.id || 'default',
-        }));
-      } catch { return []; }
-    });
+        const data = fs.readFileSync(playerFile);
+        const players = parsePlayerDB(data);
 
-    const instanceResults = await Promise.allSettled(fetches);
-    for (const r of instanceResults) {
-      if (r.status === 'fulfilled') results.push(...r.value);
+        // Filter out guests and robots
+        const realPlayers = players
+          .filter(p => !GUEST_ROBOT_PATTERN.test(p.name))
+          .map(p => ({
+            ...p,
+            server: serverName,
+            instance: inst.id,
+          }));
+
+        if (realPlayers.length === 0) continue;
+
+        const result = await auth.syncStats(realPlayers);
+        if (result && result.ok) {
+          console.log(`[stats] Synced ${result.synced} player(s) from instance '${inst.id}'`);
+        }
+      } catch (err) {
+        // No player file or sync failed — skip silently
+        if (err.code !== 'ENOENT') {
+          console.error(`[stats] Sync error for '${inst.id}':`, err.message);
+        }
+      }
     }
-  } catch {
-    // Server unreachable — skip
-  }
-  return results;
+  }, STATS_SYNC_INTERVAL_MS);
+
+  console.log(`[stats] Stats sync worker started (every ${STATS_SYNC_INTERVAL_MS / 1000}s)`);
 }
 
-async function buildGlobalLeaderboard() {
-  // Fetch from all servers in parallel
-  const serverFetches = knownServers.map(s => fetchServerLeaderboard(s));
-  const results = await Promise.allSettled(serverFetches);
+// ---- Session lock: prevent same account on multiple instances ----
+const activeSessions = new Map(); // playerName (lowercase) → { instanceId, ws }
 
-  let allPlayers = [];
-  for (const r of results) {
-    if (r.status === 'fulfilled') allPlayers.push(...r.value);
-  }
-
-  // Deduplicate: same name + server + instance → keep one (first occurrence)
-  const seen = new Set();
-  allPlayers = allPlayers.filter(p => {
-    const key = `${p.name}\0${p.server}\0${p.instance}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  // Sort by rank desc, then by total desc
-  allPlayers.sort((a, b) => b.rank - a.rank || b.total - a.total);
-
-  return {
-    updated: new Date().toISOString(),
-    players: allPlayers,
-  };
-}
-
-app.get('/api/global-leaderboard', async (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Cache-Control', 'public, max-age=300');
-
-  // Return cached if fresh
-  if (leaderboardCache && Date.now() - leaderboardCache.timestamp < LEADERBOARD_CACHE_MS) {
-    return res.json(leaderboardCache.data);
+// ---- Rank-on-login: write global best rank into instance .players file ----
+function writeRankToPlayerDB(instanceId, name, rank) {
+  const playerFile = path.join('/opt/netrek/var', instanceId, 'players');
+  let fd;
+  try {
+    fd = fs.openSync(playerFile, 'r+');
+  } catch (err) {
+    // File doesn't exist yet — C server will create it on first join
+    return;
   }
 
   try {
-    const data = await buildGlobalLeaderboard();
-    leaderboardCache = { data, timestamp: Date.now() };
-    res.json(data);
-  } catch (err) {
-    console.error('[proxy] Global leaderboard error:', err.message);
-    // Return stale cache if available
-    if (leaderboardCache) return res.json(leaderboardCache.data);
-    res.status(503).json({ error: 'Service temporarily unavailable' });
+    const stat = fs.fstatSync(fd);
+    const fileSize = stat.size;
+    if (fileSize < EXPECTED_RECORD_SIZE) return;
+
+    const nameBuf = Buffer.alloc(NAME_LEN);
+    for (let offset = 0; offset + EXPECTED_RECORD_SIZE <= fileSize; offset += EXPECTED_RECORD_SIZE) {
+      // Read the name field (first 16 bytes)
+      fs.readSync(fd, nameBuf, 0, NAME_LEN, offset);
+      const recordName = nameBuf.toString('ascii').replace(/\0.*/, '');
+      if (recordName.toLowerCase() !== name.toLowerCase()) continue;
+
+      // Found matching record — read current rank
+      const rankBuf = Buffer.alloc(4);
+      fs.readSync(fd, rankBuf, 0, 4, offset + RANK_OFFSET);
+      const currentRank = rankBuf.readInt32LE(0);
+
+      if (currentRank >= rank) return; // already at or above this rank
+
+      // Write the new rank
+      const newRankBuf = Buffer.alloc(4);
+      newRankBuf.writeInt32LE(rank, 0);
+      fs.writeSync(fd, newRankBuf, 0, 4, offset + RANK_OFFSET);
+      console.log(`[rank] Wrote rank ${rank} for '${name}' on instance '${instanceId}' (was ${currentRank})`);
+      return;
+    }
+    // Player not found in file — will be created by C server on first join
+  } finally {
+    fs.closeSync(fd);
   }
-});
+}
 
 // Web client served at /play/
 app.use('/play', express.static(STATIC_DIR));
@@ -399,7 +396,7 @@ wss.on('connection', (ws) => {
   });
 
   // Forward WebSocket data from browser → server (as binary)
-  ws.on('message', (data) => {
+  ws.on('message', async (data) => {
     let buf;
     if (Buffer.isBuffer(data)) {
       buf = data;
@@ -409,6 +406,82 @@ wss.on('connection', (ws) => {
       buf = Buffer.from(data);
     }
     console.log(`[proxy:${label}] C→S ${buf.length}B type=${buf[0]}`);
+
+    // ---- CP_LOGIN interception ----
+    if (realmConfig && isCPLogin(buf)) {
+      // Query mode (stats query) — forward unmodified
+      if (isQueryLogin(buf)) {
+        tcp.write(buf);
+        return;
+      }
+
+      // Guest bypass — forward unmodified
+      if (isGuestLogin(buf)) {
+        tcp.write(buf);
+        return;
+      }
+
+      const name = extractString(buf, 4, 16);
+      const password = extractString(buf, 20, 16);
+
+      console.log(`[proxy:${label}] CP_LOGIN intercepted for '${name}'`);
+
+      // Validate against realm controller
+      const result = await auth.validate(name, password);
+
+      if (!result.ok) {
+        // If controller is unreachable, allow guest fallback
+        if (result.unreachable) {
+          console.log(`[proxy:${label}] Controller unreachable, allowing guest fallback for '${name}'`);
+          tcp.write(buf);
+          return;
+        }
+
+        // Send rejection to client
+        const reason = result.error || 'Login failed';
+        console.log(`[proxy:${label}] Login rejected for '${name}': ${reason}`);
+        ws.send(buildSPWarning(reason));
+        ws.send(buildSPLoginReject());
+        return;
+      }
+
+      // Session lock — prevent same account on multiple instances
+      const nameKey = name.toLowerCase();
+      const existing = activeSessions.get(nameKey);
+      if (existing && existing.ws !== ws && existing.ws.readyState === existing.ws.OPEN) {
+        if (existing.instanceId !== instanceId) {
+          const existingInst = instanceMap.get(existing.instanceId);
+          const existingName = existingInst ? existingInst.name : existing.instanceId;
+          const msg = `Already playing on ${existingName}`;
+          console.log(`[proxy:${label}] Session lock: '${name}' rejected — ${msg}`);
+          ws.send(buildSPWarning(msg));
+          ws.send(buildSPLoginReject());
+          return;
+        }
+      }
+
+      // Track session
+      activeSessions.set(nameKey, { instanceId, ws });
+      ws._playerName = nameKey;
+
+      // Rank-on-login — write global best rank into instance .players file
+      try {
+        const bestRank = await auth.getBestRank(name);
+        if (bestRank > 0 && instanceId) {
+          writeRankToPlayerDB(instanceId, name, bestRank);
+        }
+      } catch (err) {
+        console.error(`[rank] Error fetching best rank for '${name}':`, err.message);
+      }
+
+      // Valid — rewrite password with proxy secret and forward
+      console.log(`[proxy:${label}] Login validated for '${name}', rewriting password`);
+      rewritePassword(buf, realmConfig.proxySecret);
+      tcp.write(buf);
+      return;
+    }
+
+    // Default: forward unmodified
     tcp.write(buf);
   });
 
@@ -416,6 +489,13 @@ wss.on('connection', (ws) => {
   function cleanup() {
     if (instanceId && instanceConnections.has(instanceId)) {
       instanceConnections.get(instanceId).delete(ws);
+    }
+    // Remove session lock if this ws owns it
+    if (ws._playerName) {
+      const session = activeSessions.get(ws._playerName);
+      if (session && session.ws === ws) {
+        activeSessions.delete(ws._playerName);
+      }
     }
   }
 
@@ -458,3 +538,6 @@ server.listen(WS_PORT, '0.0.0.0', () => {
     console.log(`[proxy] Single-instance: /ws → ${NETREK_HOST}:${NETREK_PORT}`);
   }
 });
+
+// Start stats sync worker
+startStatsSync();

@@ -245,6 +245,57 @@
     .login-submit:hover {
       background: #0f0;
     }
+    /* Registration mode: stack fields vertically */
+    .login-overlay.login-register {
+      flex-direction: column;
+      gap: 6px;
+      align-items: stretch;
+      min-width: 280px;
+    }
+    .login-overlay.login-register .login-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .login-overlay.login-register .login-label {
+      min-width: 60px;
+      text-align: right;
+    }
+    .login-overlay.login-register input {
+      flex: 1;
+    }
+    .login-email-row {
+      display: none;
+    }
+    .login-register .login-email-row {
+      display: flex;
+    }
+    .login-bottom-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .login-toggle {
+      color: #0a0;
+      font-family: 'Courier New', monospace;
+      font-size: 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 0;
+    }
+    .login-toggle:hover {
+      color: #0f0;
+    }
+    .login-status {
+      color: #f44;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      min-height: 14px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -256,13 +307,26 @@
         <div id="status">Connecting...</div>
         <iframe name="login-sink" id="login-sink" style="display:none;" aria-hidden="true"></iframe>
         <form id="login-form" class="login-overlay" autocomplete="on" action="" method="post" target="login-sink">
-          <label for="login-name" class="login-label">Name:</label>
-          <input id="login-name" type="text" name="username" autocomplete="username"
-                 maxlength="15" spellcheck="false" placeholder="guest" />
-          <label for="login-password" class="login-label">Password:</label>
-          <input id="login-password" type="password" name="password" autocomplete="current-password"
-                 maxlength="15" />
-          <button type="submit" class="login-submit">Login</button>
+          <div class="login-row">
+            <label for="login-name" class="login-label">Name:</label>
+            <input id="login-name" type="text" name="username" autocomplete="username"
+                   maxlength="15" spellcheck="false" placeholder="guest" />
+          </div>
+          <div class="login-row login-email-row">
+            <label for="login-email" class="login-label">Email:</label>
+            <input id="login-email" type="email" name="email" autocomplete="email"
+                   placeholder="optional" />
+          </div>
+          <div class="login-row">
+            <label for="login-password" class="login-label">Password:</label>
+            <input id="login-password" type="password" name="password" autocomplete="current-password"
+                   maxlength="15" />
+          </div>
+          <div id="login-status" class="login-status"></div>
+          <div class="login-bottom-row">
+            <button type="button" id="login-toggle" class="login-toggle">New player? Register</button>
+            <button type="submit" id="login-submit-btn" class="login-submit">Login</button>
+          </div>
         </form>
       </div>
       <div id="galactic-wrap" style="position: relative;">

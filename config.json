@@ -8,13 +8,18 @@
     "location": "London, UK",
     "admin": "NeoNetrek Team",
     "contact": "https://github.com/neonetrek",
-    "motd": "Welcome to NeoNetrek! Join a team and fight for galactic domination.",
+    "motd": "Accounts are here! Register to keep your name and stats across all servers. Guests still welcome.",
     "rules": [
       "Be respectful to other players",
       "No automated bots without permission",
       "Team play is encouraged",
       "Have fun!"
     ]
+  },
+  "realm": {
+    "mode": "controller",
+    "proxySecret": "neonetrek-dev",
+    "apiKey": "testkey"
   },
   "instances": [
     {
@@ -35,27 +40,6 @@
       }
     },
     {
-      "id": "bots",
-      "name": "Practice with Bots",
-      "description": "Easy practice bots to learn the game",
-      "port": 2593,
-      "features": ["bots", "practice", "beginner"],
-      "sysdef": {
-        "PRET": 1,
-        "PRET_DIFFICULTY": 6,
-        "PRET_GUEST": 1,
-        "PRET_PLANETS": 3,
-        "PRET_SAVE_GALAXY": 1,
-        "PRET_GALAXY_LIFETIME": 600,
-        "PRET_SAVE_ARMIES": 1,
-        "FPS": 50,
-        "DEFUPS": 25,
-        "MAXUPS": 50,
-        "RESETGALAXY": 1,
-        "SELF_RESET": 1
-      }
-    },
-    {
       "id": "arena",
       "name": "Arena",
       "description": "Responsive handling with medium-difficulty bots",
@@ -63,7 +47,7 @@
       "features": ["bots", "responsive", "medium"],
       "sysdef": {
         "PRET": 1,
-        "PRET_DIFFICULTY": 9,
+        "PRET_DIFFICULTY": 6,
         "PRET_GUEST": 1,
         "PRET_PLANETS": 3,
         "PRET_SAVE_GALAXY": 1,
@@ -79,6 +63,27 @@
         "RESETGALAXY": 1,
         "SELF_RESET": 1,
         "MIN_CARRY_KILLS": 0
+      }
+    },
+    {
+      "id": "bots",
+      "name": "Practice with Bots",
+      "description": "Easy practice bots to learn the game",
+      "port": 2593,
+      "features": ["bots", "practice", "beginner"],
+      "sysdef": {
+        "PRET": 1,
+        "PRET_DIFFICULTY": 9,
+        "PRET_GUEST": 1,
+        "PRET_PLANETS": 3,
+        "PRET_SAVE_GALAXY": 1,
+        "PRET_GALAXY_LIFETIME": 600,
+        "PRET_SAVE_ARMIES": 1,
+        "FPS": 50,
+        "DEFUPS": 25,
+        "MAXUPS": 50,
+        "RESETGALAXY": 1,
+        "SELF_RESET": 1
       }
     }
   ]
