@@ -63,6 +63,9 @@ export class InputHandler {
   setLoginDone() {
     this.loginState = 'done';
   }
+  setLoginFormActive() {
+    this.loginState = 'formActive';
+  }
 
   get chatTargetLabel(): string {
     if (this.chatTarget === 'all') return 'ALL';

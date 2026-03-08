@@ -416,6 +416,36 @@ describe('LoginFormController', () => {
   });
 
   // ============================================================
+  // showError
+  // ============================================================
+  describe('showError', () => {
+    it('re-shows form with error message', () => {
+      controller.hide();
+      expect(controller.isVisible).toBe(false);
+
+      controller.showError('Wrong password');
+
+      expect(controller.isVisible).toBe(true);
+      expect(getForm().classList.contains('login-visible')).toBe(true);
+      expect(getStatus().textContent).toBe('Wrong password');
+      expect(getStatus().style.color).toBeTruthy(); // error color set
+    });
+
+    it('clears password field', () => {
+      getPasswordInput().value = 'oldpwd';
+      controller.showError('Login rejected');
+      expect(getPasswordInput().value).toBe('');
+    });
+
+    it('preserves username', () => {
+      getNameInput().value = 'Picard';
+      getPasswordInput().value = 'oldpwd';
+      controller.showError('Login rejected');
+      expect(getNameInput().value).toBe('Picard');
+    });
+  });
+
+  // ============================================================
   // Input isolation
   // ============================================================
   describe('input isolation', () => {

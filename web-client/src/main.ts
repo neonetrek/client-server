@@ -36,7 +36,13 @@ function onStateUpdate() {
   needsRender = true;
   // Hide login form when game transitions past login phase
   if (loginForm) {
-    if (state.phase !== 'login') {
+    if (state.loginRejected) {
+      // Login was rejected — re-show form with error message
+      state.loginRejected = false;
+      loginForm.showError(state.warningText || 'Login rejected');
+      // Reset input state so form handles keys again
+      input.setLoginFormActive();
+    } else if (state.phase !== 'login') {
       loginForm.hide();
     }
     renderer.loginFormVisible = loginForm.isVisible;

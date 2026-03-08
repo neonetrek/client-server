@@ -100,6 +100,15 @@ export class LoginFormController {
     this.passwordInput.value = '';
   }
 
+  /** Re-show the form with an error message (called on login rejection) */
+  showError(msg: string) {
+    this.form.classList.add('login-visible');
+    this._visible = true;
+    this.showStatus(msg);
+    this.passwordInput.value = '';
+    requestAnimationFrame(() => this.passwordInput.focus());
+  }
+
   private setMode(mode: FormMode) {
     this.mode = mode;
     if (mode === 'register') {

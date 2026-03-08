@@ -134,6 +134,7 @@ export interface GameState {
   warningText: string;
   warningTime: number;
   _warningFromServer: boolean;
+  loginRejected: boolean;
 
   // Planet attack alerts & loss warnings
   planetAlerts: Map<number, PlanetAlert>;  // planetIndex -> alert
@@ -225,6 +226,7 @@ export function createGameState(): GameState {
     warningText: '',
     warningTime: 0,
     _warningFromServer: false,
+    loginRejected: false,
     planetAlerts: new Map(),
     lossWarning: '',
     lossWarningTime: 0,

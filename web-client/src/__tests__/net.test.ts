@@ -725,6 +725,7 @@ describe('NetrekConnection', () => {
       simulatePacket(ws, pkt);
       expect(state.phase).toBe('login'); // stays in login
       expect(state.warningText).toContain('rejected');
+      expect(state.loginRejected).toBe(true);
     });
 
     it('always sets motdComplete', () => {

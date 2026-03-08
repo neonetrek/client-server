@@ -566,6 +566,7 @@ export class NetrekConnection {
             s.warningTime = Date.now();
           }
           s._warningFromServer = false;
+          s.loginRejected = true;
           console.log('[net] Login rejected by server');
         }
         break;
